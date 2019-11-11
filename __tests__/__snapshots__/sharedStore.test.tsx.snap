@@ -1,0 +1,117 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`sharedStore shared between 2 component 1`] = `
+<div>
+  <div>
+    <span>
+      0
+    </span>
+    <button
+      id="increase-btn"
+      onClick={[Function]}
+    >
+      increase
+    </button>
+    <button
+      id="decrease-btn"
+      onClick={[Function]}
+    >
+      decrease
+    </button>
+  </div>
+  <div>
+    <span
+      id="count"
+    >
+      0
+    </span>
+  </div>
+</div>
+`;
+
+exports[`sharedStore shared between 2 component 2`] = `
+<div>
+  <div>
+    <span>
+      10
+    </span>
+    <button
+      id="increase-btn"
+      onClick={[Function]}
+    >
+      increase
+    </button>
+    <button
+      id="decrease-btn"
+      onClick={[Function]}
+    >
+      decrease
+    </button>
+  </div>
+  <div>
+    <span
+      id="count"
+    >
+      10
+    </span>
+  </div>
+</div>
+`;
+
+exports[`sharedStore shared between 2 component 3`] = `
+<div>
+  <div>
+    <span>
+      7
+    </span>
+    <button
+      id="increase-btn"
+      onClick={[Function]}
+    >
+      increase
+    </button>
+    <button
+      id="decrease-btn"
+      onClick={[Function]}
+    >
+      decrease
+    </button>
+  </div>
+  <div>
+    <span
+      id="count"
+    >
+      7
+    </span>
+  </div>
+</div>
+`;
+
+exports[`sharedStore shared between 2 component 4`] = `
+<div>
+  <div>
+    <span>
+      0
+    </span>
+    <button
+      id="increase-btn"
+      onClick={[Function]}
+    >
+      increase
+    </button>
+    <button
+      id="decrease-btn"
+      onClick={[Function]}
+    >
+      decrease
+    </button>
+  </div>
+  <div>
+    <span
+      id="count"
+    >
+      0
+    </span>
+  </div>
+</div>
+`;

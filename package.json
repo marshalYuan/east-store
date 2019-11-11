@@ -2,11 +2,12 @@
   "name": "east-store",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "watch": "tsc -w",
     "lint": "prettier --write --parser typescript src/*.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "coverage": "jest --collect-coverage"
   },
   "keywords": [],
   "author": "",
@@ -21,10 +22,12 @@
     "@types/jest": "^24.0.22",
     "@types/node": "^12.11.7",
     "@types/react": "^16.9.11",
+    "@types/react-test-renderer": "^16.9.1",
     "husky": "^3.0.9",
     "jest": "^24.9.0",
     "lint-staged": "^9.4.2",
     "prettier": "^1.18.2",
+    "react": "^16.11.0",
     "react-test-renderer": "^16.11.0",
     "ts-jest": "^24.1.0",
     "typescript": "^3.7.2"
@@ -36,7 +39,7 @@
   },
   "lint-staged": {
     "*.ts?(x)": [
-      "lint",
+      "prettier --parser=typescript --write",
       "git add"
     ]
   }

@@ -1,0 +1,104 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`persistedStore persist store after unmount 1`] = `
+<div>
+  <div>
+    <span>
+      0
+    </span>
+    <button
+      id="increase-btn"
+      onClick={[Function]}
+    >
+      increase
+    </button>
+    <button
+      id="decrease-btn"
+      onClick={[Function]}
+    >
+      decrease
+    </button>
+  </div>
+  <div>
+    <span
+      id="count"
+    >
+      0
+    </span>
+  </div>
+</div>
+`;
+
+exports[`persistedStore persist store after unmount 2`] = `
+<div>
+  <div>
+    <span>
+      1
+    </span>
+    <button
+      id="increase-btn"
+      onClick={[Function]}
+    >
+      increase
+    </button>
+    <button
+      id="decrease-btn"
+      onClick={[Function]}
+    >
+      decrease
+    </button>
+  </div>
+  <div>
+    <span
+      id="count"
+    >
+      1
+    </span>
+  </div>
+</div>
+`;
+
+exports[`persistedStore persist store after unmount 3`] = `
+<div>
+  <div>
+    <span>
+      1
+    </span>
+    <button
+      id="increase-btn"
+      onClick={[Function]}
+    >
+      increase
+    </button>
+    <button
+      id="decrease-btn"
+      onClick={[Function]}
+    >
+      decrease
+    </button>
+  </div>
+  <div>
+    <span
+      id="count"
+    >
+      1
+    </span>
+  </div>
+</div>
+`;
+
+exports[`persistedStore use custom storage 1`] = `
+<div>
+  <span
+    id="count"
+  >
+    0
+  </span>
+  <button
+    id="increase-btn"
+    onClick={[Function]}
+  >
+    increase
+  </button>
+</div>
+`;

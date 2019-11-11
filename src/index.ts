@@ -5,35 +5,28 @@ function generateKey(name: string) {
   return name + ':' + (+new Date() + Math.random()).toString(36)
 }
 
-function isAsyncFunction(f: Function) {
-  return f && {}.toString.call(f) === '[object AsyncFunction]'
-}
-
 function useImmer<S = any>(
   initialValue: S | (() => S)
-): [S, (f: (draft: Draft<S>) => void | S | Promise<void>) => void] {
+): [S, (f: SetState<S>) => void] {
   const [val, updateValue] = useState(initialValue)
   return [
     val,
     useCallback(
       updater => {
-        if (isAsyncFunction(updater)) {
-          ;(async () => {
-            updateValue(
-              await produce(val, <(d: Draft<S>) => Promise<void>>updater)
-            )
-          })()
+        let result = produce(val, updater)
+        if (typeof Promise !== 'undefined' && result instanceof Promise) {
+          result.then(r => updateValue(r as S))
         } else {
-          updateValue(produce(updater) as (s: S) => S)
+          updateValue(result as S)
         }
       },
       [val]
     )
   ]
 }
-type SetState<S> = (draft: Draft<S>) => void | S | Promise<void>
+type SetState<S> = (draft: Draft<S>) => void | S | Promise<void | S>
 
-interface Reducers<S> {
+interface Actions<S> {
   [key: string]: (...payload: any[]) => SetState<S>
 }
 
@@ -54,10 +47,24 @@ interface IPersistedStorage<S> {
 
 interface IStoreOptions<S = {}> {
   name?: string
-  persist?: IPersistedStorage<S>
+  persist?: IPersistedStorage<S> | boolean
+  shared?: boolean
+}
+
+type ArgumentTypes<T> = T extends (...args: infer U) => infer R ? U : never
+type ReplaceReturnType<T, TNewReturn> = (...a: ArgumentTypes<T>) => TNewReturn
+type ReturnActions<S, A extends Actions<S>> = {
+  [K in keyof A]: ReplaceReturnType<A[K], void>
 }
 
 const DEFAULT_STORE_NAME = 'east-store'
+
+function isStorage(obj: any) {
+  if (obj && typeof obj.set === 'function' && typeof obj.get === 'function') {
+    return true
+  }
+  throw new Error('Expect a valid storage implementation')
+}
 
 /**
  * @description createStore with initialState and reducers
@@ -65,19 +72,32 @@ const DEFAULT_STORE_NAME = 'east-store'
  * @param reducers
  * @param options
  */
-export function createStore<S, R extends Reducers<S>>(
+export function createStore<S, R extends Actions<S>>(
   initialState: S,
   reducers: R,
   options?: IStoreOptions<S>
 ) {
   type Updater<S> = (f: SetState<S>) => void
-  type Return = [Readonly<S>, R]
+  type Return = [Readonly<S>, ReturnActions<S, R>]
 
+  let isPersisted = !!(options && options.persist === true)
+  let isShared = !!(options && options.shared)
   let name = (options && options.name) || DEFAULT_STORE_NAME
-  let storage = (options && options.persist) || {
+  let storage: IPersistedStorage<S> = {
     set: setPersistedStore,
     get: getPersistedStore,
     generateKey
+  }
+  if (
+    options &&
+    typeof options.persist === 'object' &&
+    isStorage(options.persist)
+  ) {
+    isPersisted = true
+    storage = options.persist
+  }
+  if (isPersisted && options && options.shared != undefined && !isShared) {
+    console.warn('persisted store must be shared')
   }
 
   storage.generateKey = storage.generateKey || generateKey
@@ -87,28 +107,28 @@ export function createStore<S, R extends Reducers<S>>(
   // use a set to cache all updaters that share this state
   let updaters = new Set<Updater<S>>()
   // shared state's current value
-  let currentShareState: S
+  let currentShareState: S | null
 
   function createProxy(updater: Updater<S> | Set<Updater<S>>): R {
     return new Proxy(
       {},
       {
         get(target, name: string, desc) {
+          if (typeof reducers[name] !== 'function') {
+            throw new Error(`cannot find reducer named  '${name}'`)
+          }
           return (...args: any[]) => {
-            if (typeof reducers[name] !== 'function') {
-              throw new Error(`cannot find reducer named  '${name}'`)
-            }
             let setState = reducers[name](...args) as any
             updater instanceof Set
               ? updater.forEach((updateState: any) => updateState(setState))
-              : updater((updateState: any) => updateState(setState))
+              : updater(setState)
           }
         }
       }
     ) as R
   }
 
-  function useSimplesStore(): Return {
+  function useSimpleStore(): Return {
     const [state, updateState] = useImmer(initialState)
 
     return [state, createProxy(updateState)]
@@ -130,14 +150,8 @@ export function createStore<S, R extends Reducers<S>>(
     )
   }
 
-  function usePersistedStore(): [S, R] {
-    const [state, updateState] = useImmer(
-      storage.get(key as string) || initialState
-    )
-
-    usePersistedEffect(state)
-
-    return [state, createProxy(updateState)]
+  function resetSharedState() {
+    currentShareState = null
   }
 
   function useSharedEffect(state: S, updateState: Updater<S>) {
@@ -146,6 +160,8 @@ export function createStore<S, R extends Reducers<S>>(
       currentShareState = state
       return () => {
         updaters.delete(updateState)
+        // reset all components been unmount, reset sharedState
+        if (updaters.size == 0) resetSharedState()
       }
     }, [state, updateState])
   }
@@ -159,7 +175,7 @@ export function createStore<S, R extends Reducers<S>>(
 
   function usePersistedSharedStore(): Return {
     const [state, updateState] = useImmer<S>(
-      getPersistedStore<S>(key as string) || currentShareState || initialState
+      storage.get(key as string) || currentShareState || initialState
     )
     useSharedEffect(state, updateState)
     usePersistedEffect(state)
@@ -167,32 +183,11 @@ export function createStore<S, R extends Reducers<S>>(
     return [state, createProxy(updaters)]
   }
 
-  /**
-   * @description useStore like hooks
-   * @param type usecase of current store, persisted or shared or persisted_and_shared
-   */
-  function useStore(type?: StoreType): Return {
-    type = type || StoreType.SIMPLE
-    switch (type) {
-      case StoreType.SIMPLE:
-        return useSimplesStore()
-      case StoreType.SHARED:
-        return useSharedStore()
-      case StoreType.PERSISTED:
-        return usePersistedStore()
-      case StoreType.PERSISTED_SHARED:
-        return usePersistedSharedStore()
-      default:
-        throw new Error('Unexpect storeType')
-    }
-  }
+  let useState = isPersisted
+    ? usePersistedSharedStore
+    : isShared
+    ? useSharedStore
+    : useSimpleStore
 
-  return { useStore }
-}
-
-export enum StoreType {
-  SIMPLE,
-  PERSISTED,
-  SHARED,
-  PERSISTED_SHARED
+  return { useState }
 }

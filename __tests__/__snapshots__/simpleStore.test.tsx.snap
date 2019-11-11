@@ -1,0 +1,115 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`simpleStore async action 1`] = `
+<div>
+  Sat Nov 09 2019 11:28:20 GMT+0800 (GMT+08:00)
+</div>
+`;
+
+exports[`simpleStore async action 2`] = `
+<div>
+  Sat Nov 09 2019 11:29:06 GMT+0800 (GMT+08:00)
+</div>
+`;
+
+exports[`simpleStore initialstate is atomic 1`] = `
+<div>
+  <span>
+    0
+  </span>
+  <button
+    id="increase-btn"
+    onClick={[Function]}
+  >
+    increase
+  </button>
+  <button
+    id="decrease-btn"
+    onClick={[Function]}
+  >
+    decrease
+  </button>
+</div>
+`;
+
+exports[`simpleStore initialstate is atomic 2`] = `
+<div>
+  <span>
+    3
+  </span>
+  <button
+    id="increase-btn"
+    onClick={[Function]}
+  >
+    increase
+  </button>
+  <button
+    id="decrease-btn"
+    onClick={[Function]}
+  >
+    decrease
+  </button>
+</div>
+`;
+
+exports[`simpleStore initialstate is atomic 3`] = `
+<div>
+  <span>
+    0
+  </span>
+  <button
+    id="increase-btn"
+    onClick={[Function]}
+  >
+    increase
+  </button>
+  <button
+    id="decrease-btn"
+    onClick={[Function]}
+  >
+    decrease
+  </button>
+</div>
+`;
+
+exports[`simpleStore initialstate is complex 1`] = `
+<div>
+  <span>
+    name: 
+    Amy
+  </span>
+  <span>
+    mathScore: 
+    60
+  </span>
+  <span>
+    englishStore: 
+    70
+  </span>
+  <span>
+    totalStore: 
+    130
+  </span>
+</div>
+`;
+
+exports[`simpleStore initialstate is complex 2`] = `
+<div>
+  <span>
+    name: 
+    Amy
+  </span>
+  <span>
+    mathScore: 
+    90
+  </span>
+  <span>
+    englishStore: 
+    70
+  </span>
+  <span>
+    totalStore: 
+    160
+  </span>
+</div>
+`;
