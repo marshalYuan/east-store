@@ -1,0 +1,7 @@
+.vscode
+__tests__
+coverage
+*.log
+.DS_Store
+node_modules
+temp
