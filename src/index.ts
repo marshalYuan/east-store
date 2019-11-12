@@ -39,7 +39,12 @@ function setPersistedStore<S>(key: string, state: S) {
   return PersistedStore.set(key, state)
 }
 
-interface IPersistedStorage<S> {
+export enum UpdateMode {
+  RealTime = 1,
+  Performace = 2
+}
+
+export interface IPersistedStorage<S> {
   generateKey?(name: string): string
   set(key: string, value: S): void
   get(key: string): S | null
@@ -48,6 +53,7 @@ interface IPersistedStorage<S> {
 export interface IStoreOptions<S = {}> {
   name?: string
   persist?: IPersistedStorage<S> | boolean
+  updateMode?: UpdateMode
   shared?: boolean
 }
 
@@ -101,6 +107,18 @@ export function createStore<S, R extends Actions<S>>(
   }
 
   storage.generateKey = storage.generateKey || generateKey
+  const updateMode = (options && options.updateMode) || UpdateMode.RealTime
+  let usePersistedEffect = useRealTimeUpdate
+  switch (updateMode) {
+    case UpdateMode.Performace:
+      usePersistedEffect = usePerformanceUpdate
+      break
+    case UpdateMode.RealTime:
+      usePersistedEffect = useRealTimeUpdate
+      break
+    default:
+      console.warn('Unexpectd updateMode')
+  }
 
   // generate key for storage
   const key = storage.generateKey(name)
@@ -141,7 +159,7 @@ export function createStore<S, R extends Actions<S>>(
     return [state, useProxy(updateState)]
   }
 
-  function usePersistedEffect(state: S) {
+  function usePerformanceUpdate(state: S) {
     const val = useRef<S>()
     useEffect(
       () => () => {
@@ -155,6 +173,10 @@ export function createStore<S, R extends Actions<S>>(
       },
       []
     )
+  }
+
+  function useRealTimeUpdate(state: S) {
+    useEffect(() => () => storage.set(key, state), [state])
   }
 
   function resetSharedState() {
