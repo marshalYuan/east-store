@@ -45,7 +45,7 @@ interface IPersistedStorage<S> {
   get(key: string): S | null
 }
 
-interface IStoreOptions<S = {}> {
+export interface IStoreOptions<S = {}> {
   name?: string
   persist?: IPersistedStorage<S> | boolean
   shared?: boolean
@@ -109,29 +109,36 @@ export function createStore<S, R extends Actions<S>>(
   // shared state's current value
   let currentShareState: S | null
 
-  function createProxy(updater: Updater<S> | Set<Updater<S>>): R {
-    return new Proxy(
-      {},
-      {
-        get(target, name: string, desc) {
-          if (typeof reducers[name] !== 'function') {
-            throw new Error(`cannot find reducer named  '${name}'`)
-          }
-          return (...args: any[]) => {
-            let setState = reducers[name](...args) as any
-            updater instanceof Set
-              ? updater.forEach((updateState: any) => updateState(setState))
-              : updater(setState)
-          }
-        }
+  let proxy: R = Object.keys(reducers).reduce(
+    (pre: any, cur: keyof R) => {
+      pre[cur] = (...args: any[]) => {
+        let setState = reducers[cur](...args) as any
+        updaters.forEach((updateState: any) => updateState(setState))
       }
-    ) as R
+      return pre
+    },
+    {} as R
+  )
+
+  const useProxy = (updater?: Updater<S>) => {
+    if (updater) {
+      return Object.keys(reducers).reduce(
+        (pre: any, cur: keyof R) => {
+          pre[cur] = (...args: any[]) => {
+            updater(reducers[cur](...args) as any)
+          }
+          return pre
+        },
+        {} as R
+      )
+    }
+    return proxy
   }
 
   function useSimpleStore(): Return {
     const [state, updateState] = useImmer(initialState)
 
-    return [state, createProxy(updateState)]
+    return [state, useProxy(updateState)]
   }
 
   function usePersistedEffect(state: S) {
@@ -170,7 +177,7 @@ export function createStore<S, R extends Actions<S>>(
     const [state, updateState] = useImmer(currentShareState || initialState)
     useSharedEffect(state, updateState)
 
-    return [state, createProxy(updaters)]
+    return [state, useProxy()]
   }
 
   function usePersistedSharedStore(): Return {
@@ -180,7 +187,7 @@ export function createStore<S, R extends Actions<S>>(
     useSharedEffect(state, updateState)
     usePersistedEffect(state)
 
-    return [state, createProxy(updaters)]
+    return [state, useProxy()]
   }
 
   let useState = isPersisted
