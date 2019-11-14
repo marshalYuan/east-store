@@ -29,7 +29,7 @@ const AtomicStore = createStore(0, {
 })
 
 const Counter: React.FC = () => {
-    const [count, action] = AtomicStore.useState()
+    const [count, action] = AtomicStore.useStore()
     const handleDecrease = () => {
         action.decrease(3)
     }
@@ -65,7 +65,7 @@ const buildStudentStore = (student: typeof amy) =>
 
 const amyScore = buildStudentStore(amy)
 
-const [state, actions] = amyScore.useState()
+const [state, actions] = amyScore.useStore()
 ```
 
 So, async operation is also supported
