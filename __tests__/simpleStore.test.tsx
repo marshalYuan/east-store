@@ -135,4 +135,41 @@ describe('simpleStore', () => {
     let afterTree = component.toJSON()
     expect(afterTree).toMatchSnapshot()
   })
+
+  test('store length', () => {
+    const AtomicStore = createStore(0, {
+      increase: () => count => count + 1,
+      decrease: n => count => count - n
+    })
+    expect(AtomicStore.length).toBe(0)
+
+    const A: React.FC = () => {
+      const [count, actions] = AtomicStore.useStore()
+      return <div>{count}</div>
+    }
+
+    let a = {} as ReactTestRenderer
+    act(() => {
+      a = renderer.create(<A />)
+    })
+
+    expect(AtomicStore.length).toBe(1)
+
+    const B: React.FC = () => {
+      const [count, actions] = AtomicStore.useStore()
+      return <div>{count}</div>
+    }
+
+    let b = {} as ReactTestRenderer
+    act(() => {
+      b = renderer.create(<B />)
+    })
+
+    expect(AtomicStore.length).toBe(2)
+
+    a.unmount()
+    b.unmount()
+
+    expect(AtomicStore.length).toBe(0)
+  })
 })

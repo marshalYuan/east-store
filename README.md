@@ -85,7 +85,7 @@ const AtomicStore = createStore(0, {
 
 # Api
 
-```
+```typescript
 createStore(initial, actions, options)
 ```
 |         | des               | type                                                                                               |
