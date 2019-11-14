@@ -10,7 +10,7 @@ describe('sharedStore', () => {
   })
 
   const Com1: React.FC = () => {
-    const [count, action] = sharedStore.useState()
+    const [count, action] = sharedStore.useStore()
     const handleDecrease = () => {
       action.decrease(3)
     }
@@ -28,7 +28,7 @@ describe('sharedStore', () => {
   }
 
   const Com2: React.FC = () => {
-    const [count, _] = sharedStore.useState()
+    const [count, _] = sharedStore.useStore()
     return (
       <div>
         <span id="count">{count}</span>

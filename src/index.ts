@@ -49,6 +49,8 @@ type ReplaceReturnType<T, TNewReturn> = (...a: ArgumentTypes<T>) => TNewReturn
 type ReturnActions<S, A extends Actions<S>> = {
   [K in keyof A]: ReplaceReturnType<A[K], void>
 }
+type Updater<S> = Dispatch<SetStateAction<S>>
+type Return<S, A extends Actions<S>> = [Readonly<S>, ReturnActions<S, A>]
 
 const DEFAULT_STORE_NAME = 'east-store'
 
@@ -60,9 +62,9 @@ function isStorage(obj: any) {
 }
 
 interface Store<S, A extends Actions<S>> {
-  useState: () => [Readonly<S>, ReturnActions<S, A>]
-  borrowState: () => Readonly<S>
-  borrowActions: () => ReturnActions<S, A>
+  useStore: () => Return<S, A>
+  getState: () => Readonly<S>
+  getActions: () => ReturnActions<S, A>
   readonly length: number
 }
 
@@ -77,9 +79,6 @@ export function createStore<S, R extends Actions<S>>(
   reducers: R,
   options?: IStoreOptions<S>
 ) {
-  type Updater<S> = Dispatch<SetStateAction<S>>
-  type Return = [Readonly<S>, ReturnActions<S, R>]
-
   let isPersisted = !!(options && options.persist === true)
   let name = (options && options.name) || DEFAULT_STORE_NAME
   let storage: IPersistedStorage<S> = {
@@ -125,11 +124,11 @@ export function createStore<S, R extends Actions<S>>(
   }
 
   let store = {
-    borrowState: () => {
+    getState: () => {
       borrowCheck()
       return currentState
     },
-    borrowActions: () => {
+    getActions: () => {
       borrowCheck()
       return currentActions
     },
@@ -209,13 +208,19 @@ export function createStore<S, R extends Actions<S>>(
       updaters.add(updateState)
       return () => {
         updaters.delete(updateState)
-        // reset all components been unmount, reset sharedState
-        if (updaters.size === 0) reset()
       }
     }, [state, updateState])
+
+    // when all components been unmount, reset sharedState
+    useEffect(
+      () => () => {
+        if (updaters.size === 0) reset()
+      },
+      []
+    )
   }
 
-  function useSharedStore(): Return {
+  function useSharedStore(): Return<S, R> {
     const [state, updateState] = useState(currentState || initialState)
     useSharedEffect(state, updateState)
 
@@ -223,7 +228,7 @@ export function createStore<S, R extends Actions<S>>(
     return [state, cb()]
   }
 
-  function usePersistedSharedStore(): Return {
+  function usePersistedSharedStore(): Return<S, R> {
     const [state, updateState] = useState(
       storage.get(key as string) || currentState || initialState
     )
@@ -235,8 +240,7 @@ export function createStore<S, R extends Actions<S>>(
     return [state, cb()]
   }
 
-  let _useState = isPersisted ? usePersistedSharedStore : useSharedStore
+  store.useStore = isPersisted ? usePersistedSharedStore : useSharedStore
 
-  store.useState = _useState
   return store
 }

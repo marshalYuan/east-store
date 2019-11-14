@@ -14,7 +14,7 @@ describe('simpleStore', () => {
     })
 
     const Counter: React.FC = () => {
-      const [count, action] = AtomicStore.useState()
+      const [count, action] = AtomicStore.useStore()
       const handleDecrease = () => {
         expect(action.decrease(3)).toBe(void 0)
       }
@@ -70,7 +70,7 @@ describe('simpleStore', () => {
     const TestResult: React.FC<{
       studentStore: ReturnType<typeof buildStudentStore>
     }> = ({ studentStore }) => {
-      const [{ name, total, score }, action] = studentStore.useState()
+      const [{ name, total, score }, action] = studentStore.useStore()
       useEffect(() => {
         setTimeout(() => {
           action.modify('math', 90)
@@ -111,7 +111,7 @@ describe('simpleStore', () => {
     })
 
     const Clock: React.FC = () => {
-      const [date, action] = timer.useState()
+      const [date, action] = timer.useStore()
       useEffect(() => {
         setTimeout(() => {
           expect(action.check()).toBe(void 0)

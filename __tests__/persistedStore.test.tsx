@@ -17,7 +17,7 @@ describe('persistedStore', () => {
     )
 
     const Com1: React.FC = () => {
-      const [count, action] = persistedStore.useState()
+      const [count, action] = persistedStore.useStore()
       const handleDecrease = () => {
         action.decrease(3)
       }
@@ -35,7 +35,7 @@ describe('persistedStore', () => {
     }
 
     const Com2: React.FC = () => {
-      const [count, _] = persistedStore.useState()
+      const [count, _] = persistedStore.useStore()
       return (
         <div>
           <span id="count">{count}</span>
@@ -99,7 +99,7 @@ describe('persistedStore', () => {
     )
 
     const Counter: React.FC = () => {
-      const [count, action] = store.useState()
+      const [count, action] = store.useStore()
       return (
         <div>
           <span id="count">{count}</span>
@@ -153,7 +153,7 @@ describe('persistedStore', () => {
     )
 
     const Counter: React.FC = () => {
-      const [count, action] = store.useState()
+      const [count, action] = store.useStore()
       return (
         <div>
           <span id="count">{count}</span>
@@ -211,7 +211,7 @@ describe('persistedStore', () => {
     )
 
     const Counter: React.FC = () => {
-      const [count, action] = store.useState()
+      const [count, action] = store.useStore()
       return (
         <div>
           <span id="count">{count}</span>
