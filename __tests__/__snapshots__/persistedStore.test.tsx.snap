@@ -103,23 +103,7 @@ exports[`persistedStore store value after all components unmount 1`] = `
 </div>
 `;
 
-exports[`persistedStore use custom storage with default realtime mode 1`] = `
-<div>
-  <span
-    id="count"
-  >
-    0
-  </span>
-  <button
-    id="increase-btn"
-    onClick={[Function]}
-  >
-    increase
-  </button>
-</div>
-`;
-
-exports[`persistedStore use custom storage with performace mode 1`] = `
+exports[`persistedStore use custom storage 1`] = `
 <div>
   <span
     id="count"

@@ -1,4 +1,4 @@
-import { createStore, UpdateMode, IPersistedStorage } from '../'
+import { createStore, IPersistedStorage } from '../'
 import React from 'react'
 
 import renderer, { act, ReactTestRenderer } from 'react-test-renderer'
@@ -73,61 +73,7 @@ describe('persistedStore', () => {
     expect(component.toJSON()).toMatchSnapshot()
   })
 
-  test('use custom storage with performace mode', () => {
-    const m = new Map()
-    const g = jest.fn((name: string): string => {
-      return name
-    })
-    const set = jest.fn((key: string, val: number) => {
-      return m.set(key, val)
-    })
-    const get = jest.fn((key: string): number => {
-      return m.get(key)
-    })
-    const myStorage: IPersistedStorage<number> = {
-      generateKey: g,
-      set,
-      get
-    }
-    const NAME = 'FooStore'
-    const store = createStore(
-      0,
-      {
-        increase: () => count => count + 1
-      },
-      { persist: myStorage, updateMode: UpdateMode.Performace, name: NAME }
-    )
-
-    const Counter: React.FC = () => {
-      const [count, action] = store.useStore()
-      return (
-        <div>
-          <span id="count">{count}</span>
-          <button id="increase-btn" onClick={action.increase}>
-            increase
-          </button>
-        </div>
-      )
-    }
-
-    let component = {} as ReactTestRenderer
-    act(() => {
-      component = renderer.create(<Counter />)
-    })
-    expect(component.toJSON()).toMatchSnapshot()
-
-    expect(g).toBeCalledWith(NAME)
-    expect(get).toBeCalledWith(NAME)
-
-    act(component.root.findByProps({ id: 'increase-btn' }).props.onClick)
-
-    expect(set).toBeCalledTimes(0)
-    component.unmount()
-    expect(set).toBeCalledTimes(1)
-    expect(set).toBeCalledWith(NAME, 1)
-  })
-
-  test('use custom storage with default realtime mode', () => {
+  test('use custom storage', () => {
     const m = new Map()
     const g = jest.fn((name: string): string => {
       return name
@@ -176,9 +122,8 @@ describe('persistedStore', () => {
     act(component.root.findByProps({ id: 'increase-btn' }).props.onClick)
 
     expect(set).toBeCalledTimes(1)
-    component.unmount()
-    expect(set).toBeCalledTimes(2)
     expect(set).toBeCalledWith(NAME, 1)
+    expect(m.get(NAME)).toBe(1)
   })
 
   test('store value after all components unmount', async () => {
@@ -207,7 +152,7 @@ describe('persistedStore', () => {
       {
         delayIncrease: () => fakeAction
       },
-      { persist: myStorage, updateMode: UpdateMode.Performace, name: NAME }
+      { persist: myStorage, name: NAME }
     )
 
     const Counter: React.FC = () => {
@@ -232,12 +177,11 @@ describe('persistedStore', () => {
     expect(set).toBeCalledTimes(0)
 
     component.unmount()
-    expect(set).toBeCalledWith(NAME, 0)
     // jest.runAllTimers()
 
     await new Promise(r => setTimeout(r, 200))
 
-    expect(set).toBeCalledTimes(2)
+    expect(set).toBeCalledTimes(1)
     expect(set).toBeCalledWith(NAME, 1)
   })
 })
