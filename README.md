@@ -92,6 +92,6 @@ createStore(initial, actions, options)
 |---------|-------------------|----------------------------------------------------------------------------------------------------|
 | initial | initial state     | primitive type <br> object<br> Map, Set                                                            |
 | actions | actions for state | `(payload) => (state) => void | state`                                                             |   
-| options | other options     | `shared: boolean` , default false<br> set true if you want share state between more than one component<br><br>  `persist: boolean or Storage`, default false<br> set true if you want this state been persisted <br> and set custom storage implementation with `set, get` is also valid <br> * persistence means shared |
+| options | other options     |   `persist: boolean or Storage`, default false<br> set true if you want this state been persisted <br> and set custom storage implementation with `set, get` is also valid <br> * persistence means shared |
 
 
