@@ -4,14 +4,10 @@ import React from 'react'
 import renderer, { act, ReactTestRenderer } from 'react-test-renderer'
 
 describe('sharedStore', () => {
-  const sharedStore = createStore(
-    0,
-    {
-      increase: () => count => count + 1,
-      decrease: n => count => count - n
-    },
-    { shared: true }
-  )
+  const sharedStore = createStore(0, {
+    increase: () => count => count + 1,
+    decrease: n => count => count - n
+  })
 
   const Com1: React.FC = () => {
     const [count, action] = sharedStore.useState()

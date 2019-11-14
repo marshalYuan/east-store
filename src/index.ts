@@ -1,29 +1,17 @@
 import produce, { Draft } from 'immer'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  SetStateAction,
+  Dispatch
+} from 'react'
 
 function generateKey(name: string) {
   return name + ':' + (+new Date() + Math.random()).toString(36)
 }
 
-function useImmer<S = any>(
-  initialValue: S | (() => S)
-): [S, (f: SetState<S>) => void] {
-  const [val, updateValue] = useState(initialValue)
-  return [
-    val,
-    useCallback(
-      updater => {
-        let result = produce(val, updater)
-        if (typeof Promise !== 'undefined' && result instanceof Promise) {
-          result.then(r => updateValue(r as S))
-        } else {
-          updateValue(result as S)
-        }
-      },
-      [val]
-    )
-  ]
-}
 type SetState<S> = (draft: Draft<S>) => void | S | Promise<void | S>
 
 interface Actions<S> {
@@ -46,7 +34,7 @@ export enum UpdateMode {
 
 export interface IPersistedStorage<S> {
   generateKey?(name: string): string
-  set(key: string, value: S): void
+  set(key: string, value: S, preValue?: S): void
   get(key: string): S | null
 }
 
@@ -54,7 +42,6 @@ export interface IStoreOptions<S = {}> {
   name?: string
   persist?: IPersistedStorage<S> | boolean
   updateMode?: UpdateMode
-  shared?: boolean
 }
 
 type ArgumentTypes<T> = T extends (...args: infer U) => infer R ? U : never
@@ -72,6 +59,13 @@ function isStorage(obj: any) {
   throw new Error('Expect a valid storage implementation')
 }
 
+interface Store<S, A extends Actions<S>> {
+  useState: () => [Readonly<S>, ReturnActions<S, A>]
+  borrowState: () => Readonly<S>
+  borrowActions: () => ReturnActions<S, A>
+  readonly length: number
+}
+
 /**
  * @description createStore with initialState and reducers
  * @param initialState
@@ -83,11 +77,10 @@ export function createStore<S, R extends Actions<S>>(
   reducers: R,
   options?: IStoreOptions<S>
 ) {
-  type Updater<S> = (f: SetState<S>) => void
+  type Updater<S> = Dispatch<SetStateAction<S>>
   type Return = [Readonly<S>, ReturnActions<S, R>]
 
   let isPersisted = !!(options && options.persist === true)
-  let isShared = !!(options && options.shared)
   let name = (options && options.name) || DEFAULT_STORE_NAME
   let storage: IPersistedStorage<S> = {
     set: setPersistedStore,
@@ -101,9 +94,6 @@ export function createStore<S, R extends Actions<S>>(
   ) {
     isPersisted = true
     storage = options.persist
-  }
-  if (isPersisted && options && options.shared != undefined && !isShared) {
-    console.warn('persisted store must be shared')
   }
 
   storage.generateKey = storage.generateKey || generateKey
@@ -123,40 +113,69 @@ export function createStore<S, R extends Actions<S>>(
   // generate key for storage
   const key = storage.generateKey(name)
   // use a set to cache all updaters that share this state
-  let updaters = new Set<Updater<S>>()
+  let updaters = new Set<Dispatch<SetStateAction<S>>>()
   // shared state's current value
-  let currentShareState: S | null
+  let currentState = initialState
+  let currentActions: ReturnActions<S, R>
 
-  let proxy: R = Object.keys(reducers).reduce(
-    (pre: any, cur: keyof R) => {
-      pre[cur] = (...args: any[]) => {
-        let setState = reducers[cur](...args) as any
-        updaters.forEach((updateState: any) => updateState(setState))
-      }
-      return pre
+  function borrowCheck() {
+    if (!currentActions) {
+      throw new Error('No alive components with used the store')
+    }
+  }
+
+  let store = {
+    borrowState: () => {
+      borrowCheck()
+      return currentState
     },
-    {} as R
-  )
+    borrowActions: () => {
+      borrowCheck()
+      return currentActions
+    },
+    get length() {
+      return updaters.size
+    }
+  } as Store<S, R>
 
-  const useProxy = (updater?: Updater<S>) => {
-    if (updater) {
-      return Object.keys(reducers).reduce(
-        (pre: any, cur: keyof R) => {
-          pre[cur] = (...args: any[]) => {
-            updater(reducers[cur](...args) as any)
-          }
+  function performUpdate(state: S) {
+    updaters.forEach(setState => setState(state))
+    // update peristed storage even though there is no component alive
+    if (updaters.size === 0 && isPersisted) {
+      storage.set(key, state)
+    }
+  }
+
+  const useProxy = (state: S) => {
+    let proxy: ReturnActions<S, R>
+    const mapActions = (key: string) => (...args: any[]) => {
+      const setState = reducers[key](...args) as any
+      const result = produce(state, draft => {
+        return setState(draft, proxy)
+      })
+      if (typeof Promise !== 'undefined' && result instanceof Promise) {
+        result.then(performUpdate)
+      } else {
+        performUpdate(result)
+      }
+    }
+    if (typeof Proxy !== 'undefined') {
+      proxy = new Proxy(reducers, {
+        get(target, key, desc) {
+          return mapActions(key as string)
+        }
+      })
+    } else {
+      proxy = Object.keys(reducers).reduce(
+        (pre: any, key: string) => {
+          pre[key] = mapActions(key)
           return pre
         },
         {} as R
       )
     }
+    currentActions = proxy
     return proxy
-  }
-
-  function useSimpleStore(): Return {
-    const [state, updateState] = useImmer(initialState)
-
-    return [state, useProxy(updateState)]
   }
 
   function usePerformanceUpdate(state: S) {
@@ -179,44 +198,45 @@ export function createStore<S, R extends Actions<S>>(
     useEffect(() => () => storage.set(key, state), [state])
   }
 
-  function resetSharedState() {
-    currentShareState = null
+  function reset() {
+    currentState = initialState
+    currentActions = null as any
   }
 
   function useSharedEffect(state: S, updateState: Updater<S>) {
     useEffect(() => {
+      currentState = state
       updaters.add(updateState)
-      currentShareState = state
       return () => {
         updaters.delete(updateState)
         // reset all components been unmount, reset sharedState
-        if (updaters.size == 0) resetSharedState()
+        if (updaters.size === 0) reset()
       }
     }, [state, updateState])
   }
 
   function useSharedStore(): Return {
-    const [state, updateState] = useImmer(currentShareState || initialState)
+    const [state, updateState] = useState(currentState || initialState)
     useSharedEffect(state, updateState)
 
-    return [state, useProxy()]
+    const cb = useCallback(() => useProxy(state), [state])
+    return [state, cb()]
   }
 
   function usePersistedSharedStore(): Return {
-    const [state, updateState] = useImmer<S>(
-      storage.get(key as string) || currentShareState || initialState
+    const [state, updateState] = useState(
+      storage.get(key as string) || currentState || initialState
     )
+
     useSharedEffect(state, updateState)
     usePersistedEffect(state)
 
-    return [state, useProxy()]
+    const cb = useCallback(() => useProxy(state), [state])
+    return [state, cb()]
   }
 
-  let useState = isPersisted
-    ? usePersistedSharedStore
-    : isShared
-    ? useSharedStore
-    : useSimpleStore
+  let _useState = isPersisted ? usePersistedSharedStore : useSharedStore
 
-  return { useState }
+  store.useState = _useState
+  return store
 }

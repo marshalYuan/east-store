@@ -1,7 +1,7 @@
 import { createStore } from '../'
 import React, { useEffect } from 'react'
 
-import renderer, { act } from 'react-test-renderer'
+import renderer, { act, ReactTestRenderer } from 'react-test-renderer'
 
 describe('simpleStore', () => {
   jest.useFakeTimers()
@@ -30,7 +30,10 @@ describe('simpleStore', () => {
         </div>
       )
     }
-    const component = renderer.create(<Counter />)
+    let component = {} as ReactTestRenderer
+    act(() => {
+      component = renderer.create(<Counter />)
+    })
     let tree = component.toJSON()
     expect(tree).toMatchSnapshot()
 
@@ -114,17 +117,20 @@ describe('simpleStore', () => {
           expect(action.check()).toBe(void 0)
         }, 500)
       }, [])
-      return <div>{date.toString()}</div>
+      return <div>{date.toUTCString()}</div>
     }
 
-    const component = renderer.create(<Clock />)
+    let component = {} as ReactTestRenderer
+    act(() => {
+      component = renderer.create(<Clock />)
+    })
     let tree = component.toJSON()
     expect(tree).toMatchSnapshot()
     await act(async () => {
       jest.runAllTimers()
-      await fetchRemoteTime.mock.results[0].value
+      let d = await fetchRemoteTime.mock.results[0].value
+      expect(d).toStrictEqual(new Date(1573270146704))
     })
-    expect(fetchRemoteTime).toBeCalled()
 
     let afterTree = component.toJSON()
     expect(afterTree).toMatchSnapshot()
