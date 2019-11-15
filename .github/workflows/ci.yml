@@ -19,11 +19,12 @@ jobs:
         registry-url: 'https://registry.npmjs.org'
     - name: npm install, build, and test
       run: |
+        yarn
         npm run build --if-present
         npm test
       env:
         CI: true
     - name: npm publish
-        run: npm publish
-        env:
+      run: npm publish
+      env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
