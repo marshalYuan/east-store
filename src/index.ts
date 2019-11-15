@@ -2,7 +2,6 @@ import produce, { Draft } from 'immer'
 import {
   useState,
   useEffect,
-  useCallback,
   useRef,
   SetStateAction,
   Dispatch,
@@ -58,7 +57,7 @@ function isStorage(obj: any) {
 
 interface Store<S, A extends Actions<S>> {
   useStore: () => Return<S, A>
-  getState: () => Readonly<S>
+  getState: (transient?: boolean) => Readonly<S>
   getActions: () => ReturnActions<S, A>
   readonly length: number
 }
@@ -97,7 +96,8 @@ export function createStore<S, R extends Actions<S>>(
   // use a set to cache all updaters that share this state
   let updaters = new Set<Dispatch<SetStateAction<S>>>()
   // shared state's current value
-  let currentState = initialState
+  let transientState = initialState
+  let commitedState = initialState
   let currentActions: ReturnActions<S, R>
 
   function borrowCheck() {
@@ -107,9 +107,8 @@ export function createStore<S, R extends Actions<S>>(
   }
 
   let store = {
-    getState: () => {
-      borrowCheck()
-      return currentState
+    getState: (transient?: boolean) => {
+      return transient ? transientState : commitedState
     },
     getActions: () => {
       borrowCheck()
@@ -126,6 +125,7 @@ export function createStore<S, R extends Actions<S>>(
     if (updaters.size === 0 && isPersisted) {
       storage.set(key, state)
     }
+    transientState = state
   }
 
   const useProxy = (state: S) => {
@@ -169,13 +169,13 @@ export function createStore<S, R extends Actions<S>>(
   }
 
   function reset() {
-    currentState = initialState
+    commitedState = transientState = initialState
     currentActions = null as any
   }
 
   function useSharedEffect(state: S, updateState: Updater<S>) {
     useEffect(() => {
-      currentState = state
+      commitedState = state
       updaters.add(updateState)
       return () => {
         updaters.delete(updateState)
@@ -192,7 +192,7 @@ export function createStore<S, R extends Actions<S>>(
   }
 
   function useSharedStore(): Return<S, R> {
-    const [state, updateState] = useState(currentState || initialState)
+    const [state, updateState] = useState(commitedState)
     useSharedEffect(state, updateState)
 
     const p = useMemo(() => useProxy(state), [state])
@@ -201,7 +201,7 @@ export function createStore<S, R extends Actions<S>>(
 
   function usePersistedSharedStore(): Return<S, R> {
     const [state, updateState] = useState(
-      storage.get(key as string) || currentState || initialState
+      storage.get(key as string) || commitedState
     )
 
     useSharedEffect(state, updateState)

@@ -73,6 +73,18 @@ describe('persistedStore', () => {
     expect(component.toJSON()).toMatchSnapshot()
   })
 
+  test('invaild storage', () => {
+    expect(() => {
+      const store = createStore(
+        0,
+        {
+          increase: () => count => count + 1
+        },
+        { persist: {} as IPersistedStorage<number> }
+      )
+    }).toThrowError('Expect a valid storage implementation')
+  })
+
   test('use custom storage', () => {
     const m = new Map()
     const g = jest.fn((name: string): string => {

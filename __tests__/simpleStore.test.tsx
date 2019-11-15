@@ -172,4 +172,48 @@ describe('simpleStore', () => {
 
     expect(AtomicStore.length).toBe(0)
   })
+
+  test('store.getState() & store.getActions()', () => {
+    let counterStore = createStore(0, {
+      increase: () => count => count + 1
+    })
+
+    let store = createStore(
+      { status: 'pending' },
+      {
+        start: () => state => {
+          counterStore.getActions().increase()
+          expect(counterStore.getState()).toBe(0)
+          // get transient state
+          expect(counterStore.getState(true)).toBe(1)
+          state.status = 'start'
+        }
+      }
+    )
+
+    expect(counterStore.getState()).toBe(0)
+    expect(() => counterStore.getActions()).toThrow()
+
+    const A: React.FC = () => {
+      const [count, _] = counterStore.useStore()
+      const [{ status }, actions] = store.useStore()
+
+      return (
+        <div>
+          <span>{count}</span>
+          <span>{status}</span>
+        </div>
+      )
+    }
+
+    let a = {} as ReactTestRenderer
+    act(() => {
+      a = renderer.create(<A />)
+    })
+    expect(a.toJSON()).toMatchSnapshot()
+
+    act(store.getActions().start)
+
+    expect(a.toJSON()).toMatchSnapshot()
+  })
 })

@@ -113,3 +113,25 @@ exports[`simpleStore initialstate is complex 2`] = `
   </span>
 </div>
 `;
+
+exports[`simpleStore store.getState() & store.getActions() 1`] = `
+<div>
+  <span>
+    0
+  </span>
+  <span>
+    pending
+  </span>
+</div>
+`;
+
+exports[`simpleStore store.getState() & store.getActions() 2`] = `
+<div>
+  <span>
+    1
+  </span>
+  <span>
+    start
+  </span>
+</div>
+`;
