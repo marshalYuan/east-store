@@ -5,7 +5,8 @@ import {
   useCallback,
   useRef,
   SetStateAction,
-  Dispatch
+  Dispatch,
+  useMemo
 } from 'react'
 
 function generateKey(name: string) {
@@ -194,8 +195,8 @@ export function createStore<S, R extends Actions<S>>(
     const [state, updateState] = useState(currentState || initialState)
     useSharedEffect(state, updateState)
 
-    const cb = useCallback(() => useProxy(state), [state])
-    return [state, cb()]
+    const p = useMemo(() => useProxy(state), [state])
+    return [state, p]
   }
 
   function usePersistedSharedStore(): Return<S, R> {
@@ -206,8 +207,8 @@ export function createStore<S, R extends Actions<S>>(
     useSharedEffect(state, updateState)
     usePersistedEffect(state)
 
-    const cb = useCallback(() => useProxy(state), [state])
-    return [state, cb()]
+    const p = useMemo(() => useProxy(state), [state])
+    return [state, p]
   }
 
   store.useStore = isPersisted ? usePersistedSharedStore : useSharedStore

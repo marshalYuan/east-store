@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "watch": "tsc -w",
-    "bulid": "tsc",
+    "build": "tsc",
     "lint": "prettier --write --parser typescript src/*.ts",
     "test": "jest",
     "coverage": "jest --collect-coverage"
