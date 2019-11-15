@@ -1,4 +1,4 @@
-import produce, { Draft } from 'immer'
+import produce, { Draft, setUseProxies } from 'immer'
 import {
   useState,
   useEffect,
@@ -18,18 +18,90 @@ interface Actions<S> {
   [key: string]: (...payload: any[]) => SetState<S>
 }
 
-const PersistedStore = new Map()
-function getPersistedStore<S>(key: string): S | null {
-  return PersistedStore.get(key)
+const iMap =
+  Map ||
+  class<K, V> {
+    private table: Array<[K, V]> = []
+    get(key: K) {
+      for (let index = 0; index < this.table.length; index++) {
+        const element = this.table[index]
+        if (element[0] == key) {
+          return element[1]
+        }
+      }
+    }
+    set(key: K, value: V) {
+      for (let index = 0; index < this.table.length; index++) {
+        const element = this.table[index]
+        if (element[0] == key) {
+          element[1] = value
+          break
+        }
+      }
+      this.table.push([key, value])
+    }
+    delete(key: K) {
+      let i = -1
+      for (let index = 0; index < this.table.length; index++) {
+        const element = this.table[index]
+        if (element[0] === key) {
+          i = index
+        }
+      }
+      if (i > -1) {
+        this.table.splice(i, 1)
+        return true
+      }
+      return false
+    }
+    forEach(f: (v: V, k: K, m: Map<K, V>) => void) {
+      for (let index = 0; index < this.table.length; index++) {
+        const element = this.table[index]
+        f(element[1], element[0], this as any)
+      }
+    }
+    get size() {
+      return this.table.length
+    }
+  }
+
+const iSet =
+  Set ||
+  class<V> {
+    private map: Map<V, V> = new iMap()
+    add(v: V) {
+      this.map.set(v, v)
+    }
+    delete(v: V) {
+      return this.map.delete(v)
+    }
+    forEach(f: (k: V, v: V, set: Set<V>) => void) {
+      this.map.forEach((v, k) => {
+        f(v, k, this as any)
+      })
+    }
+    get size() {
+      return this.map.size
+    }
+  }
+
+const isSupportedProxy = typeof Proxy !== 'undefined'
+if (!isSupportedProxy) {
+  setUseProxies(false)
 }
 
-function setPersistedStore<S>(key: string, state: S) {
-  return PersistedStore.set(key, state)
+const store: Map<string, any> = new iMap()
+const defaultStorage = {
+  generateKey,
+  get: (key: string) => store.get(key),
+  set: (key: string, value: any) => {
+    store.set(key, value)
+  }
 }
 
 export interface IPersistedStorage<S> {
   generateKey?(name: string): string
-  set(key: string, value: S, preValue?: S): void
+  set(key: string, value: S): void
   get(key: string): S | null
 }
 
@@ -75,11 +147,7 @@ export function createStore<S, R extends Actions<S>>(
 ) {
   let isPersisted = !!(options && options.persist === true)
   let name = (options && options.name) || DEFAULT_STORE_NAME
-  let storage: IPersistedStorage<S> = {
-    set: setPersistedStore,
-    get: getPersistedStore,
-    generateKey
-  }
+  let storage = defaultStorage as IPersistedStorage<S>
   if (
     options &&
     typeof options.persist === 'object' &&
@@ -94,7 +162,7 @@ export function createStore<S, R extends Actions<S>>(
   // generate key for storage
   const key = storage.generateKey(name)
   // use a set to cache all updaters that share this state
-  let updaters = new Set<Dispatch<SetStateAction<S>>>()
+  let updaters = new iSet<Dispatch<SetStateAction<S>>>()
   // shared state's current value
   let transientState = initialState
   let commitedState = initialState
@@ -141,7 +209,7 @@ export function createStore<S, R extends Actions<S>>(
         performUpdate(result)
       }
     }
-    if (typeof Proxy !== 'undefined') {
+    if (isSupportedProxy) {
       proxy = new Proxy(reducers, {
         get(target, key, desc) {
           return mapActions(key as string)
@@ -180,7 +248,7 @@ export function createStore<S, R extends Actions<S>>(
       return () => {
         updaters.delete(updateState)
       }
-    }, [state, updateState])
+    }, [state])
 
     // when all components been unmount, reset sharedState
     useEffect(
