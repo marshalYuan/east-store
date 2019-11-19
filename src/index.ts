@@ -9,12 +9,12 @@ import {
 } from 'react'
 
 function generateKey(name: string) {
-  return name + ':' + (+new Date() + Math.random()).toString(36)
+  return name
 }
 
 type SetState<S> = (draft: Draft<S>) => void | S | Promise<void | S>
 
-interface Actions<S> {
+export interface Actions<S> {
   [key: string]: (...payload: any[]) => SetState<S>
 }
 
@@ -105,7 +105,14 @@ export interface IPersistedStorage<S> {
   get(key: string): S | null
 }
 
-export interface IStoreOptions<S = {}> {
+export interface Middleware {
+  (action: string, payload: any[], store: Store<any, any>, isAsync: boolean):
+    | void
+    | (() => any)
+}
+
+export interface IStoreOptions<S> {
+  middlewares?: Middleware[]
   name?: string
   persist?: IPersistedStorage<S> | boolean
 }
@@ -127,11 +134,13 @@ function isStorage(obj: any) {
   throw new Error('Expect a valid storage implementation')
 }
 
-interface Store<S, A extends Actions<S>> {
+export interface Store<S, A extends Actions<S>> {
   useStore: () => Return<S, A>
   getState: (transient?: boolean) => Readonly<S>
+  // setState: (s: S) => void
   getActions: () => ReturnActions<S, A>
   readonly length: number
+  readonly name: string
 }
 
 /**
@@ -148,6 +157,7 @@ export function createStore<S, R extends Actions<S>>(
   let isPersisted = !!(options && options.persist === true)
   let name = (options && options.name) || DEFAULT_STORE_NAME
   let storage = defaultStorage as IPersistedStorage<S>
+  let middlewares = (options && options.middlewares) || []
   if (
     options &&
     typeof options.persist === 'object' &&
@@ -164,68 +174,68 @@ export function createStore<S, R extends Actions<S>>(
   // use a set to cache all updaters that share this state
   let updaters = new iSet<Dispatch<SetStateAction<S>>>()
   // shared state's current value
-  let transientState = initialState
-  let commitedState = initialState
-  let currentActions: ReturnActions<S, R>
-
-  function borrowCheck() {
-    if (!currentActions) {
-      throw new Error('No alive components with used the store')
-    }
-  }
+  let transientState: S
+  let commitedState: S
+  let proxy: ReturnActions<S, R>
 
   let store = {
     getState: (transient?: boolean) => {
-      return transient ? transientState : commitedState
+      return (transient ? transientState : commitedState) || initialState
     },
     getActions: () => {
-      borrowCheck()
-      return currentActions
+      return proxy
     },
     get length() {
       return updaters.size
+    },
+    get name() {
+      return name
     }
   } as Store<S, R>
 
   function performUpdate(state: S) {
-    updaters.forEach(setState => setState(state))
-    // update peristed storage even though there is no component alive
-    if (updaters.size === 0 && isPersisted) {
-      storage.set(key, state)
-    }
     transientState = state
+    // update peristed storage even though there is no component alive
+    if (updaters.size === 0) {
+      console &&
+        console.warn &&
+        console.warn(
+          'No alive component to respond this update, just sync to storage if needful'
+        )
+      isPersisted && storage.set(key, state)
+    } else {
+      updaters.forEach(setState => setState(state))
+    }
+  }
+  let middlewareCBs: ReturnType<Middleware>[] = []
+  const mapActions = (key: string) => (...args: any[]) => {
+    const setState = reducers[key](...args) as any
+    const result = produce(commitedState, draft => {
+      return setState(draft, proxy)
+    })
+    if (typeof Promise !== 'undefined' && result instanceof Promise) {
+      middlewareCBs.push(...middlewares.map(fn => fn(key, args, store, true)))
+      result.then(performUpdate)
+    } else {
+      middlewareCBs.push(...middlewares.map(fn => fn(key, args, store, false)))
+      performUpdate(result)
+    }
   }
 
-  const useProxy = (state: S) => {
-    let proxy: ReturnActions<S, R>
-    const mapActions = (key: string) => (...args: any[]) => {
-      const setState = reducers[key](...args) as any
-      const result = produce(state, draft => {
-        return setState(draft, proxy)
-      })
-      if (typeof Promise !== 'undefined' && result instanceof Promise) {
-        result.then(performUpdate)
-      } else {
-        performUpdate(result)
+  if (isSupportedProxy) {
+    proxy = new Proxy(reducers, {
+      get(target, key, desc) {
+        return mapActions(key as string)
       }
-    }
-    if (isSupportedProxy) {
-      proxy = new Proxy(reducers, {
-        get(target, key, desc) {
-          return mapActions(key as string)
-        }
-      })
-    } else {
-      proxy = Object.keys(reducers).reduce(
-        (pre: any, key: string) => {
-          pre[key] = mapActions(key)
-          return pre
-        },
-        {} as R
-      )
-    }
-    currentActions = proxy
-    return proxy
+    })
+  } else {
+    proxy = Object.keys(reducers).reduce(
+      (pre: any, key: string) => {
+        pre[key] = mapActions(key)
+        return pre
+      },
+      {} as R
+    )
   }
 
   function usePersistedEffect(state: S) {
@@ -236,12 +246,17 @@ export function createStore<S, R extends Actions<S>>(
     }, [state])
   }
 
-  function reset() {
-    commitedState = transientState = initialState
-    currentActions = null as any
+  function useMiddlewareEffect(state: S) {
+    useEffect(() => {
+      middlewareCBs.forEach(f => {
+        typeof f === 'function' && f()
+      })
+      middlewareCBs = []
+    })
   }
 
   function useSharedEffect(state: S, updateState: Updater<S>) {
+    transientState = transientState || state
     useEffect(() => {
       commitedState = state
       updaters.add(updateState)
@@ -251,32 +266,27 @@ export function createStore<S, R extends Actions<S>>(
     }, [state])
 
     // when all components been unmount, reset sharedState
-    useEffect(
-      () => () => {
-        if (updaters.size === 0) reset()
-      },
-      []
-    )
   }
 
   function useSharedStore(): Return<S, R> {
-    const [state, updateState] = useState(commitedState)
-    useSharedEffect(state, updateState)
+    const [state, updateState] = useState(transientState || initialState)
 
-    const p = useMemo(() => useProxy(state), [state])
-    return [state, p]
+    useSharedEffect(state, updateState)
+    useMiddlewareEffect(state)
+
+    return [state, proxy]
   }
 
   function usePersistedSharedStore(): Return<S, R> {
     const [state, updateState] = useState(
-      storage.get(key as string) || commitedState
+      transientState || storage.get(key as string) || initialState
     )
 
     useSharedEffect(state, updateState)
     usePersistedEffect(state)
+    useMiddlewareEffect(state)
 
-    const p = useMemo(() => useProxy(state), [state])
-    return [state, p]
+    return [state, proxy]
   }
 
   store.useStore = isPersisted ? usePersistedSharedStore : useSharedStore

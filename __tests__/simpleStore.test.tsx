@@ -192,7 +192,8 @@ describe('simpleStore', () => {
     )
 
     expect(counterStore.getState()).toBe(0)
-    expect(() => counterStore.getActions()).toThrow()
+    counterStore.getActions().increase()
+    expect(counterStore.getState()).toBe(0)
 
     const A: React.FC = () => {
       const [count, _] = counterStore.useStore()
