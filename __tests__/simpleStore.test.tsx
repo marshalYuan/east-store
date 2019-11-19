@@ -1,4 +1,4 @@
-import { createStore } from '../'
+import { createStore, Middleware } from '../'
 import React, { useEffect } from 'react'
 
 import renderer, { act, ReactTestRenderer } from 'react-test-renderer'
@@ -216,5 +216,64 @@ describe('simpleStore', () => {
     act(store.getActions().start)
 
     expect(a.toJSON()).toMatchSnapshot()
+  })
+
+  test('middleware', async () => {
+    jest.useRealTimers()
+    const sleep = async (timeout: number) =>
+      await new Promise(r => setTimeout(r, timeout))
+
+    let middlewareCB = jest.fn(() => {})
+    const middleware: Middleware = jest.fn(
+      (action, payload, store, isAsync) => {
+        return middlewareCB
+      }
+    )
+    const store = createStore(
+      { foo: 'foo', bar: 0 },
+      {
+        increase: (n: number) => state => {
+          state.bar += n
+        },
+        delayIncrease: () => async state => {
+          await sleep(100)
+          state.bar += 2
+        }
+      },
+      {
+        middlewares: [middleware]
+      }
+    )
+
+    const A: React.FC = () => {
+      const [state, actions] = store.useStore()
+
+      return (
+        <div>
+          <span>{state.foo}</span>
+          <span>{state.bar}</span>
+        </div>
+      )
+    }
+
+    let a = {} as ReactTestRenderer
+    act(() => {
+      a = renderer.create(<A />)
+    })
+    act(() => store.getActions().increase(2))
+
+    expect(middleware).toBeCalledWith('increase', [2], store, false)
+    expect(middlewareCB).toBeCalled()
+
+    act(() => {
+      store.getActions().delayIncrease()
+      expect(middleware).lastCalledWith('delayIncrease', [], store, true)
+      expect(middlewareCB).toBeCalledTimes(1)
+    })
+
+    await act(async () => {
+      await sleep(200)
+    })
+    expect(middlewareCB).toBeCalledTimes(2)
   })
 })
