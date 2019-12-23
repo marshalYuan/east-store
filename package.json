@@ -1,6 +1,6 @@
 {
   "name": "east-store",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "repository": "dwd-fe/east-store",
   "main": "dist/index.js",

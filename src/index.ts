@@ -136,7 +136,8 @@ function isStorage(obj: any) {
 
 export interface Store<S, A extends Actions<S>> {
   useStore: () => Return<S, A>
-  getState: (transient?: boolean) => Readonly<S>
+  getState: () => Readonly<S>
+  getCommitedState: () => Readonly<S>
   // setState: (s: S) => void
   getActions: () => ReturnActions<S, A>
   readonly length: number
@@ -179,8 +180,11 @@ export function createStore<S, R extends Actions<S>>(
   let proxy: ReturnActions<S, R>
 
   let store = {
-    getState: (transient?: boolean) => {
-      return (transient ? transientState : commitedState) || initialState
+    getState: () => {
+      return transientState || initialState
+    },
+    getCommitedState: () => {
+      return commitedState || initialState
     },
     getActions: () => {
       return proxy
@@ -210,7 +214,7 @@ export function createStore<S, R extends Actions<S>>(
   let middlewareCBs: ReturnType<Middleware>[] = []
   const mapActions = (key: string) => (...args: any[]) => {
     const setState = reducers[key](...args) as any
-    const result = produce(commitedState, draft => {
+    const result = produce(transientState, draft => {
       return setState(draft, proxy)
     })
     if (typeof Promise !== 'undefined' && result instanceof Promise) {
