@@ -136,6 +136,60 @@ describe('simpleStore', () => {
     expect(afterTree).toMatchSnapshot()
   })
 
+  test('concurrent async action', async () => {
+    const fetchRemoteTime = jest.fn(async () => {
+      return await new Date(1573270146704)
+    })
+
+    const timer = createStore(
+      {
+        date: new Date(1573270100000),
+        flag: 0
+      },
+      {
+        check: () => async state => {
+          timer.getActions().mark(1)
+          state.date = await fetchRemoteTime()
+          timer.getActions().mark(0)
+        },
+        mark: (flag: number) => state => {
+          state.flag = flag
+        }
+      }
+    )
+
+    const Clock: React.FC = () => {
+      const [{ date, flag }, action] = timer.useStore()
+      useEffect(() => {
+        setTimeout(() => {
+          action.check()
+          // action.mark()
+        }, 500)
+      }, [])
+      return (
+        <div>
+          <span>{flag}</span>
+          <span>{date.toUTCString()}</span>
+        </div>
+      )
+    }
+
+    let component = {} as ReactTestRenderer
+    act(() => {
+      component = renderer.create(<Clock />)
+    })
+    let tree = component.toJSON()
+    expect(tree).toMatchSnapshot()
+    await act(async () => {
+      jest.runAllTimers()
+      let d = await fetchRemoteTime.mock.results[0].value
+      expect(d).toStrictEqual(new Date(1573270146704))
+    })
+
+    let afterTree = component.toJSON()
+    expect(afterTree).toMatchSnapshot()
+  })
+
   test('store length', () => {
     const AtomicStore = createStore(0, {
       increase: () => count => count + 1,
@@ -183,9 +237,9 @@ describe('simpleStore', () => {
       {
         start: () => state => {
           counterStore.getActions().increase()
-          expect(counterStore.getState()).toBe(0)
+          expect(counterStore.getCommitedState()).toBe(0)
           // get transient state
-          expect(counterStore.getState(true)).toBe(1)
+          expect(counterStore.getState()).toBe(1)
           state.status = 'start'
         }
       }

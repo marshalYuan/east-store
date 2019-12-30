@@ -1,6 +1,6 @@
 {
   "name": "east-store",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "",
   "repository": "dwd-fe/east-store",
   "main": "dist/index.js",
@@ -9,16 +9,14 @@
     "build": "tsc",
     "lint": "prettier --write --parser typescript src/*.ts",
     "test": "jest",
-    "coverage": "jest --collect-coverage"
+    "coverage": "jest --collect-coverage",
+    "prepublish": "npm run build"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "immer": "^5.0.0"
-  },
-  "peerDependencies": {
-    "react": ">=16.8.0"
   },
   "devDependencies": {
     "@types/jest": "^24.0.22",

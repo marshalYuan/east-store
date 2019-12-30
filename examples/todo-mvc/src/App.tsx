@@ -7,9 +7,10 @@ import { ENTER_KEY, APP_MENUS } from './constants'
 const Main: React.FC = () => {
   const [{ todos, editing }, actions] = appStore.useStore()
   const [nowShowing] = routerStore.useStore()
-  let activeTodoCount = todos.reduce(function(accum, todo) {
-    return todo.completed ? accum : accum + 1
-  }, 0)
+  let activeTodoCount = todos.reduce(
+    (accum, todo) => (todo.completed ? accum : accum + 1),
+    0
+  )
   function handleToggleAll(e: React.ChangeEvent<HTMLInputElement>) {
     let checked = e.target.checked
     actions.toggleAll(checked)

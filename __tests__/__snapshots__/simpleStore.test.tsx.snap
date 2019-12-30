@@ -12,6 +12,28 @@ exports[`simpleStore async action 2`] = `
 </div>
 `;
 
+exports[`simpleStore concurrent async action 1`] = `
+<div>
+  <span>
+    0
+  </span>
+  <span>
+    Sat, 09 Nov 2019 03:28:20 GMT
+  </span>
+</div>
+`;
+
+exports[`simpleStore concurrent async action 2`] = `
+<div>
+  <span>
+    0
+  </span>
+  <span>
+    Sat, 09 Nov 2019 03:29:06 GMT
+  </span>
+</div>
+`;
+
 exports[`simpleStore initialstate is atomic 1`] = `
 <div>
   <span>

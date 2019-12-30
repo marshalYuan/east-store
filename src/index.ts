@@ -1,4 +1,10 @@
-import produce, { Draft, setUseProxies } from 'immer'
+import produce, {
+  Draft,
+  setUseProxies,
+  applyPatches,
+  Patch,
+  isDraftable
+} from 'immer'
 import {
   useState,
   useEffect,
@@ -178,6 +184,9 @@ export function createStore<S, R extends Actions<S>>(
   let transientState: S
   let commitedState: S
   let proxy: ReturnActions<S, R>
+  let changes: Patch[] = []
+  // the inverse of all the changes made in the wizard
+  let inverseChanges: Patch[] = []
 
   let store = {
     getState: () => {
@@ -198,7 +207,15 @@ export function createStore<S, R extends Actions<S>>(
   } as Store<S, R>
 
   function performUpdate(state: S) {
-    transientState = state
+    if (isDraftable(state)) {
+      const result = applyPatches(transientState, changes)
+      changes = []
+      inverseChanges = []
+      transientState = result
+    } else {
+      transientState = state
+    }
+
     // update peristed storage even though there is no component alive
     if (updaters.size === 0) {
       console &&
@@ -206,17 +223,22 @@ export function createStore<S, R extends Actions<S>>(
         console.warn(
           'No alive component to respond this update, just sync to storage if needful'
         )
-      isPersisted && storage.set(key, state)
+      isPersisted && storage.set(key, transientState)
     } else {
-      updaters.forEach(setState => setState(state))
+      updaters.forEach(setState => setState(transientState))
     }
   }
   let middlewareCBs: ReturnType<Middleware>[] = []
   const mapActions = (key: string) => (...args: any[]) => {
     const setState = reducers[key](...args) as any
-    const result = produce(transientState, draft => {
-      return setState(draft, proxy)
-    })
+    const result = produce(
+      transientState,
+      setState,
+      (patches, inversePatches) => {
+        changes.push(...patches)
+        inverseChanges.push(...inversePatches)
+      }
+    )
     if (typeof Promise !== 'undefined' && result instanceof Promise) {
       middlewareCBs.push(...middlewares.map(fn => fn(key, args, store, true)))
       result.then(performUpdate)

@@ -88,11 +88,11 @@ export const appStore = createStore(
     },
     save: (id: string, text: string) => async state => {
       let todo = state.todos.find(i => i.id === id)
-      appStore.getActions().setLoading(true)
+      let s = appStore.getActions().setLoading(true) as any
       await sleep(2000)
       todo && (todo.title = text)
       state.editing = null
-      state.loading = false
+      state.loading = true
     }
   },
   {
