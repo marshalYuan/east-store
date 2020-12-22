@@ -3,7 +3,8 @@ import produce, {
   setUseProxies,
   applyPatches,
   Patch,
-  isDraftable
+  isDraftable,
+  enablePatches
 } from 'immer'
 import {
   useState,
@@ -13,6 +14,8 @@ import {
   Dispatch,
   useMemo
 } from 'react'
+
+enablePatches()
 
 function generateKey(name: string) {
   return name

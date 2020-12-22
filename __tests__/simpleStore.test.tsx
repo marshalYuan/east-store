@@ -1,5 +1,6 @@
 import { createStore, Middleware } from '../'
 import React, { useEffect } from 'react'
+import moment from 'moment'
 
 import renderer, { act, ReactTestRenderer } from 'react-test-renderer'
 
@@ -104,14 +105,19 @@ describe('simpleStore', () => {
       return await new Date(1573270146704)
     })
 
-    const timer = createStore(new Date(1573270100000), {
-      check: () => async () => {
-        return await fetchRemoteTime()
+    const timer = createStore(
+      {
+        date: new Date(1573270100000)
+      },
+      {
+        check: () => async state => {
+          state.date = await fetchRemoteTime()
+        }
       }
-    })
+    )
 
     const Clock: React.FC = () => {
-      const [date, action] = timer.useStore()
+      const [{ date }, action] = timer.useStore()
       useEffect(() => {
         setTimeout(() => {
           expect(action.check()).toBe(void 0)
@@ -329,5 +335,46 @@ describe('simpleStore', () => {
       await sleep(200)
     })
     expect(middlewareCB).toBeCalledTimes(2)
+  })
+
+  test('state.xxx with moment', () => {
+    const store = createStore(
+      {
+        date: moment('2020-12-22')
+      },
+      {
+        setDate: date => state => {
+          state.date = date
+        }
+      }
+    )
+
+    const A: React.FC = () => {
+      const [{ date }, actions] = store.useStore()
+
+      function handleChange() {
+        actions.setDate(moment('2020-12-25'))
+      }
+
+      return (
+        <div>
+          <span className="date">{date.format('YYYY-MM-DD')}</span>
+          <button id="moment-change-btn" onClick={handleChange}>
+            change btn
+          </button>
+        </div>
+      )
+    }
+
+    let a = {} as ReactTestRenderer
+    act(() => {
+      a = renderer.create(<A />)
+    })
+
+    act(a.root.findByProps({ id: 'moment-change-btn' }).props.onClick)
+    expect(a.root.findByProps({ className: 'date' }).children).toEqual([
+      '2020-12-25'
+    ])
+    expect(store.getState().date.format('YYYY-MM-DD')).toBe('2020-12-25')
   })
 })
