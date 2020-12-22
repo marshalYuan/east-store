@@ -226,7 +226,7 @@ export function createStore<S, R extends Actions<S>>(
         console.warn(
           'No alive component to respond this update, just sync to storage if needful'
         )
-      isPersisted && storage.set(key, transientState)
+      isPersisted && storage.set(key, state)
     } else {
       updaters.forEach(setState => setState(transientState))
     }
