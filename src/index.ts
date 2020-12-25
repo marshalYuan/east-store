@@ -12,6 +12,7 @@ import {
   useRef,
   SetStateAction,
   Dispatch,
+  useCallback,
   useMemo
 } from 'react'
 
@@ -99,6 +100,35 @@ if (!isSupportedProxy) {
   setUseProxies(false)
 }
 
+type Obj = Record<string | number | symbol, unknown>
+
+function shallowEqual<T extends any, U extends any>(objA: T, objB: U) {
+  if (Object.is(objA, objB)) {
+    return true
+  }
+  if (
+    typeof objA !== 'object' ||
+    objA === null ||
+    typeof objB !== 'object' ||
+    objB === null
+  ) {
+    return false
+  }
+  const keysA = Object.keys(objA as object)
+  if (keysA.length !== Object.keys(objB as object).length) {
+    return false
+  }
+  for (let i = 0; i < keysA.length; i++) {
+    if (
+      !Object.prototype.hasOwnProperty.call(objB, keysA[i]) ||
+      !Object.is((objA as Obj)[keysA[i]], (objB as Obj)[keysA[i]])
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 const store: Map<string, any> = new iMap()
 const defaultStorage = {
   generateKey,
@@ -132,7 +162,7 @@ type ReturnActions<S, A extends Actions<S>> = {
   [K in keyof A]: ReplaceReturnType<A[K], void>
 }
 type Updater<S> = Dispatch<SetStateAction<S>>
-type Return<S, A extends Actions<S>> = [Readonly<S>, ReturnActions<S, A>]
+type Hooks<S, A extends Actions<S>, E = S> = [Readonly<E>, ReturnActions<S, A>]
 
 const DEFAULT_STORE_NAME = 'east-store'
 
@@ -143,8 +173,14 @@ function isStorage(obj: any) {
   throw new Error('Expect a valid storage implementation')
 }
 
+type Selector<S, E> = (state: S) => E
+
 export interface Store<S, A extends Actions<S>> {
-  useStore: () => Return<S, A>
+  useStore(): Hooks<S, A, S>
+  useStore<E = S>(
+    selector: Selector<S, E>,
+    compareFn?: (prev: E, curr: E) => boolean
+  ): Hooks<S, A, E>
   getState: () => Readonly<S>
   getCommitedState: () => Readonly<S>
   // setState: (s: S) => void
@@ -184,7 +220,7 @@ export function createStore<S, R extends Actions<S>>(
   // use a set to cache all updaters that share this state
   let updaters = new iSet<Dispatch<SetStateAction<S>>>()
   // shared state's current value
-  let transientState: S
+  let transientState: S = initialState
   let commitedState: S
   let proxy: ReturnActions<S, R>
   let changes: Patch[] = []
@@ -258,24 +294,21 @@ export function createStore<S, R extends Actions<S>>(
       }
     })
   } else {
-    proxy = Object.keys(reducers).reduce(
-      (pre: any, key: string) => {
-        pre[key] = mapActions(key)
-        return pre
-      },
-      {} as R
-    )
+    proxy = Object.keys(reducers).reduce((pre: any, key: string) => {
+      pre[key] = mapActions(key)
+      return pre
+    }, {} as R)
   }
 
-  function usePersistedEffect(state: S) {
+  function usePersistedEffect() {
     const didMount = useRef(false)
     useEffect(() => {
-      didMount.current && storage.set(key, state)
+      didMount.current && storage.set(key, transientState)
       didMount.current = true
-    }, [state])
+    }, [transientState])
   }
 
-  function useMiddlewareEffect(state: S) {
+  function useMiddlewareEffect() {
     useEffect(() => {
       middlewareCBs.forEach(f => {
         typeof f === 'function' && f()
@@ -284,38 +317,67 @@ export function createStore<S, R extends Actions<S>>(
     })
   }
 
-  function useSharedEffect(state: S, updateState: Updater<S>) {
-    transientState = transientState || state
+  function useSharedEffect(updateState: Updater<S>) {
     useEffect(() => {
-      commitedState = state
+      commitedState = transientState
       updaters.add(updateState)
       return () => {
         updaters.delete(updateState)
       }
-    }, [state])
+    }, [transientState])
 
     // when all components been unmount, reset sharedState
   }
 
-  function useSharedStore(): Return<S, R> {
-    const [state, updateState] = useState(transientState || initialState)
+  function useSharedStore<E = S>(
+    selector?: Selector<S, E>,
+    compareFn?: (prev: E, curr: E) => boolean
+  ): Hooks<S, R, E> {
+    const storeState = transientState || initialState
+    const [state, setState] = useState(() =>
+      selector ? selector(storeState) : storeState
+    )
+    const updater = makeUpdater([state as E, setState], selector, compareFn)
+    useSharedEffect(updater)
+    useMiddlewareEffect()
 
-    useSharedEffect(state, updateState)
-    useMiddlewareEffect(state)
-
-    return [state, proxy]
+    return [state as E, proxy]
   }
 
-  function usePersistedSharedStore(): Return<S, R> {
-    const [state, updateState] = useState(
+  function makeUpdater<E>(
+    [state, setState]: [E, Dispatch<SetStateAction<S | E>>],
+    selector?: Selector<S, E>,
+    compareFn: (prev: E, curr: E) => boolean = shallowEqual
+  ): Updater<S> {
+    let updater
+    if (selector) {
+      updater = (ts: S) => {
+        const current = selector(ts)
+        if (!compareFn(state as E, current)) {
+          setState(current)
+        }
+      }
+    } else {
+      updater = setState
+    }
+    return updater as Updater<S>
+  }
+
+  function usePersistedSharedStore<E = S>(
+    selector?: Selector<S, E>,
+    compareFn?: (prev: E, curr: E) => boolean
+  ): Hooks<S, R, E> {
+    const storeState =
       transientState || storage.get(key as string) || initialState
+    const [state, setState] = useState(() =>
+      selector ? selector(storeState) : storeState
     )
+    const updater = makeUpdater([state as E, setState], selector, compareFn)
+    useSharedEffect(updater)
+    usePersistedEffect()
+    useMiddlewareEffect()
 
-    useSharedEffect(state, updateState)
-    usePersistedEffect(state)
-    useMiddlewareEffect(state)
-
-    return [state, proxy]
+    return [state as E, proxy]
   }
 
   store.useStore = isPersisted ? usePersistedSharedStore : useSharedStore

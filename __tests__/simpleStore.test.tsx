@@ -243,9 +243,9 @@ describe('simpleStore', () => {
       {
         start: () => state => {
           counterStore.getActions().increase()
-          expect(counterStore.getCommitedState()).toBe(0)
+          expect(counterStore.getCommitedState()).toBe(1)
           // get transient state
-          expect(counterStore.getState()).toBe(1)
+          expect(counterStore.getState()).toBe(2)
           state.status = 'start'
         }
       }
@@ -253,7 +253,8 @@ describe('simpleStore', () => {
 
     expect(counterStore.getState()).toBe(0)
     counterStore.getActions().increase()
-    expect(counterStore.getState()).toBe(0)
+    expect(counterStore.getCommitedState()).toBe(0)
+    expect(counterStore.getState()).toBe(1)
 
     const A: React.FC = () => {
       const [count, _] = counterStore.useStore()
