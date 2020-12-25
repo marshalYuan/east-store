@@ -28,73 +28,6 @@ export interface Actions<S> {
   [key: string]: (...payload: any[]) => SetState<S>
 }
 
-const iMap =
-  Map ||
-  class<K, V> {
-    private table: Array<[K, V]> = []
-    get(key: K) {
-      for (let index = 0; index < this.table.length; index++) {
-        const element = this.table[index]
-        if (element[0] == key) {
-          return element[1]
-        }
-      }
-    }
-    set(key: K, value: V) {
-      for (let index = 0; index < this.table.length; index++) {
-        const element = this.table[index]
-        if (element[0] == key) {
-          element[1] = value
-          break
-        }
-      }
-      this.table.push([key, value])
-    }
-    delete(key: K) {
-      let i = -1
-      for (let index = 0; index < this.table.length; index++) {
-        const element = this.table[index]
-        if (element[0] === key) {
-          i = index
-        }
-      }
-      if (i > -1) {
-        this.table.splice(i, 1)
-        return true
-      }
-      return false
-    }
-    forEach(f: (v: V, k: K, m: Map<K, V>) => void) {
-      for (let index = 0; index < this.table.length; index++) {
-        const element = this.table[index]
-        f(element[1], element[0], this as any)
-      }
-    }
-    get size() {
-      return this.table.length
-    }
-  }
-
-const iSet =
-  Set ||
-  class<V> {
-    private map: Map<V, V> = new iMap()
-    add(v: V) {
-      this.map.set(v, v)
-    }
-    delete(v: V) {
-      return this.map.delete(v)
-    }
-    forEach(f: (k: V, v: V, set: Set<V>) => void) {
-      this.map.forEach((v, k) => {
-        f(v, k, this as any)
-      })
-    }
-    get size() {
-      return this.map.size
-    }
-  }
-
 const isSupportedProxy = typeof Proxy !== 'undefined'
 if (!isSupportedProxy) {
   setUseProxies(false)
@@ -129,7 +62,7 @@ function shallowEqual<T extends any, U extends any>(objA: T, objB: U) {
   return true
 }
 
-const store: Map<string, any> = new iMap()
+const store: Map<string, any> = new Map()
 const defaultStorage = {
   generateKey,
   get: (key: string) => store.get(key),
@@ -218,7 +151,7 @@ export function createStore<S, R extends Actions<S>>(
   // generate key for storage
   const key = storage.generateKey(name)
   // use a set to cache all updaters that share this state
-  let updaters = new iSet<Dispatch<SetStateAction<S>>>()
+  let updaters = new Set<Dispatch<SetStateAction<S>>>()
   // shared state's current value
   let transientState: S = initialState
   let commitedState: S
