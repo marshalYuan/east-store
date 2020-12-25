@@ -6,7 +6,14 @@ import produce, {
   isDraftable,
   enablePatches
 } from 'immer'
-import { useState, useEffect, useRef, SetStateAction, Dispatch } from 'react'
+import {
+  useState,
+  useEffect,
+  useRef,
+  SetStateAction,
+  Dispatch,
+  useCallback
+} from 'react'
 
 enablePatches()
 
@@ -142,6 +149,10 @@ export function createStore<S, R extends Actions<S>>(
 
   // generate key for storage
   const key = storage.generateKey(name)
+  if (isPersisted) {
+    const persitedState = storage.get(key)
+    persitedState && (initialState = persitedState)
+  }
   // use a set to cache all updaters that share this state
   let updaters = new Set<Dispatch<SetStateAction<S>>>()
   // shared state's current value
@@ -254,55 +265,50 @@ export function createStore<S, R extends Actions<S>>(
     // when all components been unmount, reset sharedState
   }
 
+  function useSelector<E>(
+    selector?: Selector<S, E>,
+    compareFn: (prev: E, curr: E) => boolean = shallowEqual
+  ): [E, Updater<S>] {
+    const [state, setState] = useState(() =>
+      selector ? selector(transientState) : transientState
+    )
+    const stateRef = useRef(state)
+    stateRef.current = state
+    const updater = useCallback((ts: S) => {
+      if (selector) {
+        const current = selector(ts)
+        if (!compareFn(stateRef.current as E, current)) {
+          setState(current)
+        }
+      } else {
+        setState(ts)
+      }
+    }, [])
+
+    return [state as E, updater as Updater<S>]
+  }
+
   function useSharedStore<E = S>(
     selector?: Selector<S, E>,
     compareFn?: (prev: E, curr: E) => boolean
   ): Hooks<S, R, E> {
-    const storeState = transientState || initialState
-    const [state, setState] = useState(() =>
-      selector ? selector(storeState) : storeState
-    )
-    const updater = makeUpdater([state as E, setState], selector, compareFn)
+    const [state, updater] = useSelector(selector, compareFn)
     useSharedEffect(updater)
     useMiddlewareEffect()
 
-    return [state as E, proxy]
-  }
-
-  function makeUpdater<E>(
-    [state, setState]: [E, Dispatch<SetStateAction<S | E>>],
-    selector?: Selector<S, E>,
-    compareFn: (prev: E, curr: E) => boolean = shallowEqual
-  ): Updater<S> {
-    let updater
-    if (selector) {
-      updater = (ts: S) => {
-        const current = selector(ts)
-        if (!compareFn(state as E, current)) {
-          setState(current)
-        }
-      }
-    } else {
-      updater = setState
-    }
-    return updater as Updater<S>
+    return [state, proxy]
   }
 
   function usePersistedSharedStore<E = S>(
     selector?: Selector<S, E>,
     compareFn?: (prev: E, curr: E) => boolean
   ): Hooks<S, R, E> {
-    const storeState =
-      transientState || storage.get(key as string) || initialState
-    const [state, setState] = useState(() =>
-      selector ? selector(storeState) : storeState
-    )
-    const updater = makeUpdater([state as E, setState], selector, compareFn)
+    const [state, updater] = useSelector(selector, compareFn)
     useSharedEffect(updater)
     usePersistedEffect()
     useMiddlewareEffect()
 
-    return [state as E, proxy]
+    return [state, proxy]
   }
 
   store.useStore = isPersisted ? usePersistedSharedStore : useSharedStore
