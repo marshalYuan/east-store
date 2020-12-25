@@ -2,8 +2,8 @@
 
 > east-store is a state manager with easiest api that based hooks and immer.
 
-[![npm](https://img.shields.io/npm/v/east-store.svg?style=flat-square)](http://npm.im/easy-peasy)
-[![MIT License](https://img.shields.io/npm/l/easy-peasy.svg?style=flat-square)](http://opensource.org/licenses/MIT)
+[![npm](https://img.shields.io/npm/v/east-store.svg?style=flat-square)](http://npm.im/east-store)
+[![MIT License](https://img.shields.io/npm/l/east-store.svg?style=flat-square)](http://opensource.org/licenses/MIT)
 
 # install
 
