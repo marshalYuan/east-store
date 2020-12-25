@@ -94,4 +94,12 @@ createStore(initial, actions, options)
 | actions | actions for state | `(payload) => (state) => void | state`                                                             |   
 | options | other options     |   `persist: boolean or Storage`, default false<br> set true if you want this state been persisted <br> and set custom storage implementation with `set, get` is also valid <br> * persistence means shared |
 
+```typescript
+useStore(selector?, compareFn?)
+```
+
+|         | des               | type                                                                                               |
+|---------|-------------------|----------------------------------------------------------------------------------------------------|
+| selector | selector function  |   `(state) => state.items`                                                         |
+| compareFn | compare function,default shallow | `(prev, curr) => boolean`                                                             |   
 

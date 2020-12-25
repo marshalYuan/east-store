@@ -6,15 +6,7 @@ import produce, {
   isDraftable,
   enablePatches
 } from 'immer'
-import {
-  useState,
-  useEffect,
-  useRef,
-  SetStateAction,
-  Dispatch,
-  useCallback,
-  useMemo
-} from 'react'
+import { useState, useEffect, useRef, SetStateAction, Dispatch } from 'react'
 
 enablePatches()
 
@@ -109,7 +101,7 @@ function isStorage(obj: any) {
 type Selector<S, E> = (state: S) => E
 
 export interface Store<S, A extends Actions<S>> {
-  useStore(): Hooks<S, A, S>
+  useStore(): Hooks<S, A>
   useStore<E = S>(
     selector: Selector<S, E>,
     compareFn?: (prev: E, curr: E) => boolean
