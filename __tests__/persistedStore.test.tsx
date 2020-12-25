@@ -6,6 +6,52 @@ import renderer, { act, ReactTestRenderer } from 'react-test-renderer'
 describe('persistedStore', () => {
   // jest.useFakeTimers()
 
+  test('use persist store as initialState', () => {
+    const m = new Map()
+    const g = jest.fn((name: string): string => {
+      return name
+    })
+    const set = jest.fn((key: string, val: any) => {
+      return m.set(key, val)
+    })
+    const get = jest.fn((key: string): any => {
+      return m.get(key)
+    })
+    const name1 = 'persistedStore1'
+    const myStorage = {
+      generateKey: g,
+      set,
+      get
+    }
+    myStorage.set(name1, { a: 101, b: 102 })
+    const persistedStore = createStore(
+      {
+        a: 1,
+        b: 2
+      },
+      {
+        increaseA: () => state => (state.a += 1)
+      },
+      { persist: myStorage, name: name1 }
+    )
+
+    expect(persistedStore.getState().a).toBe(101)
+
+    const name2 = 'persistedStore2'
+    const persistedStore2 = createStore(
+      {
+        a: 1,
+        b: 2
+      },
+      {
+        increaseA: () => state => (state.a += 1)
+      },
+      { persist: myStorage, name: name2 }
+    )
+
+    expect(persistedStore2.getState().a).toBe(1)
+  })
+
   test('persist store after unmount', () => {
     const persistedStore = createStore(
       0,
