@@ -75,7 +75,7 @@ describe('sharedStore', () => {
       component = renderer.create(<App />)
     })
     // reset shared value after all components been unmounted
-    expect(component.root.findByProps({ id: 'count' }).children[0]).toBe('0')
+    expect(component.root.findByProps({ id: 'count' }).children[0]).toBe('7')
     expect(component.toJSON()).toMatchSnapshot()
   })
 })

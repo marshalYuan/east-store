@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    braches: 
+    branches: 
       - release
 
 jobs:

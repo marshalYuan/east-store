@@ -1,6 +1,7 @@
 .vscode
 __tests__
 coverage
+examples
 *.log
 .DS_Store
 node_modules

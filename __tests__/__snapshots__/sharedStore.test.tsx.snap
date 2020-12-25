@@ -91,7 +91,7 @@ exports[`sharedStore shared between 2 component 4`] = `
 <div>
   <div>
     <span>
-      0
+      7
     </span>
     <button
       id="increase-btn"
@@ -110,7 +110,7 @@ exports[`sharedStore shared between 2 component 4`] = `
     <span
       id="count"
     >
-      0
+      7
     </span>
   </div>
 </div>

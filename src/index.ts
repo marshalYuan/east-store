@@ -1,96 +1,60 @@
-import produce, { Draft, setUseProxies } from 'immer'
-import {
-  useState,
-  useEffect,
-  useRef,
-  SetStateAction,
-  Dispatch,
-  useMemo
-} from 'react'
+import produce, {
+  Draft,
+  setUseProxies,
+  applyPatches,
+  Patch,
+  isDraftable,
+  enablePatches
+} from 'immer'
+import { useState, useEffect, useRef, SetStateAction, Dispatch } from 'react'
+
+enablePatches()
 
 function generateKey(name: string) {
-  return name + ':' + (+new Date() + Math.random()).toString(36)
+  return name
 }
 
 type SetState<S> = (draft: Draft<S>) => void | S | Promise<void | S>
 
-interface Actions<S> {
+export interface Actions<S> {
   [key: string]: (...payload: any[]) => SetState<S>
 }
-
-const iMap =
-  Map ||
-  class<K, V> {
-    private table: Array<[K, V]> = []
-    get(key: K) {
-      for (let index = 0; index < this.table.length; index++) {
-        const element = this.table[index]
-        if (element[0] == key) {
-          return element[1]
-        }
-      }
-    }
-    set(key: K, value: V) {
-      for (let index = 0; index < this.table.length; index++) {
-        const element = this.table[index]
-        if (element[0] == key) {
-          element[1] = value
-          break
-        }
-      }
-      this.table.push([key, value])
-    }
-    delete(key: K) {
-      let i = -1
-      for (let index = 0; index < this.table.length; index++) {
-        const element = this.table[index]
-        if (element[0] === key) {
-          i = index
-        }
-      }
-      if (i > -1) {
-        this.table.splice(i, 1)
-        return true
-      }
-      return false
-    }
-    forEach(f: (v: V, k: K, m: Map<K, V>) => void) {
-      for (let index = 0; index < this.table.length; index++) {
-        const element = this.table[index]
-        f(element[1], element[0], this as any)
-      }
-    }
-    get size() {
-      return this.table.length
-    }
-  }
-
-const iSet =
-  Set ||
-  class<V> {
-    private map: Map<V, V> = new iMap()
-    add(v: V) {
-      this.map.set(v, v)
-    }
-    delete(v: V) {
-      return this.map.delete(v)
-    }
-    forEach(f: (k: V, v: V, set: Set<V>) => void) {
-      this.map.forEach((v, k) => {
-        f(v, k, this as any)
-      })
-    }
-    get size() {
-      return this.map.size
-    }
-  }
 
 const isSupportedProxy = typeof Proxy !== 'undefined'
 if (!isSupportedProxy) {
   setUseProxies(false)
 }
 
-const store: Map<string, any> = new iMap()
+type Obj = Record<string | number | symbol, unknown>
+
+function shallowEqual<T extends any, U extends any>(objA: T, objB: U) {
+  if (Object.is(objA, objB)) {
+    return true
+  }
+  if (
+    typeof objA !== 'object' ||
+    objA === null ||
+    typeof objB !== 'object' ||
+    objB === null
+  ) {
+    return false
+  }
+  const keysA = Object.keys(objA as object)
+  if (keysA.length !== Object.keys(objB as object).length) {
+    return false
+  }
+  for (let i = 0; i < keysA.length; i++) {
+    if (
+      !Object.prototype.hasOwnProperty.call(objB, keysA[i]) ||
+      !Object.is((objA as Obj)[keysA[i]], (objB as Obj)[keysA[i]])
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+const store: Map<string, any> = new Map()
 const defaultStorage = {
   generateKey,
   get: (key: string) => store.get(key),
@@ -105,7 +69,14 @@ export interface IPersistedStorage<S> {
   get(key: string): S | null
 }
 
-export interface IStoreOptions<S = {}> {
+export interface Middleware {
+  (action: string, payload: any[], store: Store<any, any>, isAsync: boolean):
+    | void
+    | (() => any)
+}
+
+export interface IStoreOptions<S> {
+  middlewares?: Middleware[]
   name?: string
   persist?: IPersistedStorage<S> | boolean
 }
@@ -116,7 +87,7 @@ type ReturnActions<S, A extends Actions<S>> = {
   [K in keyof A]: ReplaceReturnType<A[K], void>
 }
 type Updater<S> = Dispatch<SetStateAction<S>>
-type Return<S, A extends Actions<S>> = [Readonly<S>, ReturnActions<S, A>]
+type Hooks<S, A extends Actions<S>, E = S> = [Readonly<E>, ReturnActions<S, A>]
 
 const DEFAULT_STORE_NAME = 'east-store'
 
@@ -127,11 +98,20 @@ function isStorage(obj: any) {
   throw new Error('Expect a valid storage implementation')
 }
 
-interface Store<S, A extends Actions<S>> {
-  useStore: () => Return<S, A>
-  getState: (transient?: boolean) => Readonly<S>
+type Selector<S, E> = (state: S) => E
+
+export interface Store<S, A extends Actions<S>> {
+  useStore(): Hooks<S, A>
+  useStore<E = S>(
+    selector: Selector<S, E>,
+    compareFn?: (prev: E, curr: E) => boolean
+  ): Hooks<S, A, E>
+  getState: () => Readonly<S>
+  getCommitedState: () => Readonly<S>
+  // setState: (s: S) => void
   getActions: () => ReturnActions<S, A>
   readonly length: number
+  readonly name: string
 }
 
 /**
@@ -148,6 +128,7 @@ export function createStore<S, R extends Actions<S>>(
   let isPersisted = !!(options && options.persist === true)
   let name = (options && options.name) || DEFAULT_STORE_NAME
   let storage = defaultStorage as IPersistedStorage<S>
+  let middlewares = (options && options.middlewares) || []
   if (
     options &&
     typeof options.persist === 'object' &&
@@ -162,121 +143,166 @@ export function createStore<S, R extends Actions<S>>(
   // generate key for storage
   const key = storage.generateKey(name)
   // use a set to cache all updaters that share this state
-  let updaters = new iSet<Dispatch<SetStateAction<S>>>()
+  let updaters = new Set<Dispatch<SetStateAction<S>>>()
   // shared state's current value
-  let transientState = initialState
-  let commitedState = initialState
-  let currentActions: ReturnActions<S, R>
-
-  function borrowCheck() {
-    if (!currentActions) {
-      throw new Error('No alive components with used the store')
-    }
-  }
+  let transientState: S = initialState
+  let commitedState: S
+  let proxy: ReturnActions<S, R>
+  let changes: Patch[] = []
+  // the inverse of all the changes made in the wizard
+  let inverseChanges: Patch[] = []
 
   let store = {
-    getState: (transient?: boolean) => {
-      return transient ? transientState : commitedState
+    getState: () => {
+      return transientState || initialState
+    },
+    getCommitedState: () => {
+      return commitedState || initialState
     },
     getActions: () => {
-      borrowCheck()
-      return currentActions
+      return proxy
     },
     get length() {
       return updaters.size
+    },
+    get name() {
+      return name
     }
   } as Store<S, R>
 
   function performUpdate(state: S) {
-    updaters.forEach(setState => setState(state))
-    // update peristed storage even though there is no component alive
-    if (updaters.size === 0 && isPersisted) {
-      storage.set(key, state)
-    }
-    transientState = state
-  }
-
-  const useProxy = (state: S) => {
-    let proxy: ReturnActions<S, R>
-    const mapActions = (key: string) => (...args: any[]) => {
-      const setState = reducers[key](...args) as any
-      const result = produce(state, draft => {
-        return setState(draft, proxy)
-      })
-      if (typeof Promise !== 'undefined' && result instanceof Promise) {
-        result.then(performUpdate)
-      } else {
-        performUpdate(result)
-      }
-    }
-    if (isSupportedProxy) {
-      proxy = new Proxy(reducers, {
-        get(target, key, desc) {
-          return mapActions(key as string)
-        }
-      })
+    if (isDraftable(state)) {
+      const result = applyPatches(transientState, changes)
+      changes = []
+      inverseChanges = []
+      transientState = result
     } else {
-      proxy = Object.keys(reducers).reduce(
-        (pre: any, key: string) => {
-          pre[key] = mapActions(key)
-          return pre
-        },
-        {} as R
-      )
+      transientState = state
     }
-    currentActions = proxy
-    return proxy
+
+    // update peristed storage even though there is no component alive
+    if (updaters.size === 0) {
+      console &&
+        console.warn &&
+        console.warn(
+          'No alive component to respond this update, just sync to storage if needful'
+        )
+      isPersisted && storage.set(key, transientState)
+    } else {
+      updaters.forEach(setState => setState(transientState))
+    }
+  }
+  let middlewareCBs: ReturnType<Middleware>[] = []
+  const mapActions = (key: string) => (...args: any[]) => {
+    const setState = reducers[key](...args) as any
+    const result = produce(
+      transientState,
+      setState,
+      (patches, inversePatches) => {
+        changes.push(...patches)
+        inverseChanges.push(...inversePatches)
+      }
+    )
+    if (typeof Promise !== 'undefined' && result instanceof Promise) {
+      middlewareCBs.push(...middlewares.map(fn => fn(key, args, store, true)))
+      result.then(performUpdate)
+    } else {
+      middlewareCBs.push(...middlewares.map(fn => fn(key, args, store, false)))
+      performUpdate(result)
+    }
   }
 
-  function usePersistedEffect(state: S) {
+  if (isSupportedProxy) {
+    proxy = new Proxy(reducers, {
+      get(target, key, desc) {
+        return mapActions(key as string)
+      }
+    })
+  } else {
+    proxy = Object.keys(reducers).reduce((pre: any, key: string) => {
+      pre[key] = mapActions(key)
+      return pre
+    }, {} as R)
+  }
+
+  function usePersistedEffect() {
     const didMount = useRef(false)
     useEffect(() => {
-      didMount.current && storage.set(key, state)
+      didMount.current && storage.set(key, transientState)
       didMount.current = true
-    }, [state])
+    }, [transientState])
   }
 
-  function reset() {
-    commitedState = transientState = initialState
-    currentActions = null as any
-  }
-
-  function useSharedEffect(state: S, updateState: Updater<S>) {
+  function useMiddlewareEffect() {
     useEffect(() => {
-      commitedState = state
+      middlewareCBs.forEach(f => {
+        typeof f === 'function' && f()
+      })
+      middlewareCBs = []
+    })
+  }
+
+  function useSharedEffect(updateState: Updater<S>) {
+    useEffect(() => {
+      commitedState = transientState
       updaters.add(updateState)
       return () => {
         updaters.delete(updateState)
       }
-    }, [state])
+    }, [transientState])
 
     // when all components been unmount, reset sharedState
-    useEffect(
-      () => () => {
-        if (updaters.size === 0) reset()
-      },
-      []
-    )
   }
 
-  function useSharedStore(): Return<S, R> {
-    const [state, updateState] = useState(commitedState)
-    useSharedEffect(state, updateState)
+  function useSharedStore<E = S>(
+    selector?: Selector<S, E>,
+    compareFn?: (prev: E, curr: E) => boolean
+  ): Hooks<S, R, E> {
+    const storeState = transientState || initialState
+    const [state, setState] = useState(() =>
+      selector ? selector(storeState) : storeState
+    )
+    const updater = makeUpdater([state as E, setState], selector, compareFn)
+    useSharedEffect(updater)
+    useMiddlewareEffect()
 
-    const p = useMemo(() => useProxy(state), [state])
-    return [state, p]
+    return [state as E, proxy]
   }
 
-  function usePersistedSharedStore(): Return<S, R> {
-    const [state, updateState] = useState(
-      storage.get(key as string) || commitedState
+  function makeUpdater<E>(
+    [state, setState]: [E, Dispatch<SetStateAction<S | E>>],
+    selector?: Selector<S, E>,
+    compareFn: (prev: E, curr: E) => boolean = shallowEqual
+  ): Updater<S> {
+    let updater
+    if (selector) {
+      updater = (ts: S) => {
+        const current = selector(ts)
+        if (!compareFn(state as E, current)) {
+          setState(current)
+        }
+      }
+    } else {
+      updater = setState
+    }
+    return updater as Updater<S>
+  }
+
+  function usePersistedSharedStore<E = S>(
+    selector?: Selector<S, E>,
+    compareFn?: (prev: E, curr: E) => boolean
+  ): Hooks<S, R, E> {
+    const storeState =
+      transientState || storage.get(key as string) || initialState
+    const [state, setState] = useState(() =>
+      selector ? selector(storeState) : storeState
     )
+    const updater = makeUpdater([state as E, setState], selector, compareFn)
+    useSharedEffect(updater)
+    usePersistedEffect()
+    useMiddlewareEffect()
 
-    useSharedEffect(state, updateState)
-    usePersistedEffect(state)
-
-    const p = useMemo(() => useProxy(state), [state])
-    return [state, p]
+    return [state as E, proxy]
   }
 
   store.useStore = isPersisted ? usePersistedSharedStore : useSharedStore
