@@ -4,7 +4,7 @@ import produce, {
   applyPatches,
   Patch,
   isDraftable,
-  enablePatches
+  enableAllPlugins
 } from 'immer'
 import {
   useState,
@@ -15,7 +15,7 @@ import {
   useCallback
 } from 'react'
 
-enablePatches()
+enableAllPlugins()
 
 function generateKey(name: string) {
   return name
