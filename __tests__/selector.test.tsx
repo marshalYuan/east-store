@@ -1,12 +1,10 @@
 import { createStore } from '../'
-import React from 'react'
+import React, { useCallback, useState } from 'react'
 
 import renderer, { act, ReactTestRenderer } from 'react-test-renderer'
-import { stat } from 'fs'
-import { equal } from 'assert'
 
-describe('selector', () => {
-  const complex = createStore(
+function createComplexStore() {
+  return createStore(
     {
       foo: 1,
       bar: 'bar',
@@ -30,8 +28,11 @@ describe('selector', () => {
       }
     }
   )
+}
 
+describe('selector', () => {
   test('base', () => {
+    const complex = createComplexStore()
     const Com1: React.FC = () => {
       const [n, _] = complex.useStore(s => s.baz.a + s.foo)
       return <div id="number">{n}</div>
@@ -42,6 +43,7 @@ describe('selector', () => {
   })
 
   test('dispatch action', () => {
+    const complex = createComplexStore()
     const renderSentinal = jest.fn()
     const Com2: React.FC = () => {
       const [n, _] = complex.useStore(s => s.baz.a + s.foo)
@@ -67,5 +69,43 @@ describe('selector', () => {
       complex.getActions().setBaz({ a: 1, b: 1 }) // shallow equal, not trigger render
     })
     expect(renderSentinal).toBeCalledTimes(2)
+  })
+
+  test('selector capture environment', () => {
+    const complex = createComplexStore()
+    const renderSentinal = jest.fn()
+    const Com3: React.FC = () => {
+      const [payload, setPayload] = useState(0)
+      renderSentinal()
+      const [n, _] = complex.useStore(s => s.baz.a + s.foo + payload)
+      // consistent effect
+      // const [n, _] = complex.useStore(useCallback(s => s.baz.a + s.foo + payload, [payload]));
+      return (
+        <div id="number" onClick={() => setPayload(payload + 1)}>
+          {n}
+        </div>
+      )
+    }
+
+    let component = {} as ReactTestRenderer
+    act(() => {
+      component = renderer.create(<Com3 />) // render 1
+    })
+
+    expect(component.root.findByProps({ id: 'number' }).children[0]).toBe('101')
+
+    act(() => {
+      component.root.findByProps({ id: 'number' }).props.onClick() // render 2
+    })
+
+    expect(component.root.findByProps({ id: 'number' }).children[0]).toBe('102')
+
+    act(() => {
+      complex.getActions().setBazA(1) // render 3
+    })
+
+    expect(component.root.findByProps({ id: 'number' }).children[0]).toBe('3')
+
+    expect(renderSentinal).toBeCalledTimes(3)
   })
 })
