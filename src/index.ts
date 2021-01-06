@@ -269,21 +269,23 @@ export function createStore<S, R extends Actions<S>>(
     selector?: Selector<S, E>,
     compareFn: (prev: E, curr: E) => boolean = shallowEqual
   ): [E, Updater<S>] {
-    const [state, setState] = useState(() =>
-      selector ? selector(transientState) : transientState
-    )
+    let [state, setState] = useState<E | S>()
+    state = selector ? selector(transientState) : transientState
     const stateRef = useRef(state)
     stateRef.current = state
-    const updater = useCallback((ts: S) => {
-      if (selector) {
-        const current = selector(ts)
-        if (!compareFn(stateRef.current as E, current)) {
-          setState(current)
+    const updater = useCallback(
+      (ts: S) => {
+        if (selector) {
+          const current = selector(ts)
+          if (!compareFn(stateRef.current as E, current)) {
+            setState(current)
+          }
+        } else {
+          setState(ts)
         }
-      } else {
-        setState(ts)
-      }
-    }, [])
+      },
+      [selector]
+    )
 
     return [state as E, updater as Updater<S>]
   }
