@@ -1,6 +1,6 @@
 {
   "name": "east-store",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "description": "",
   "repository": "https://github.com/marshalYuan/east-store.git",
   "main": "dist/index.js",
