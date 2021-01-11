@@ -120,7 +120,7 @@ describe('simpleStore', () => {
       const [{ date }, action] = timer.useStore()
       useEffect(() => {
         setTimeout(() => {
-          expect(action.check()).toBe(void 0)
+          expect(action.check()).resolves.toBe(void 0)
         }, 500)
       }, [])
       return <div>{date.toUTCString()}</div>

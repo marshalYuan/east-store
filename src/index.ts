@@ -91,7 +91,9 @@ export interface IStoreOptions<S> {
 type ArgumentTypes<T> = T extends (...args: infer U) => infer R ? U : never
 type ReplaceReturnType<T, TNewReturn> = (...a: ArgumentTypes<T>) => TNewReturn
 type ReturnActions<S, A extends Actions<S>> = {
-  [K in keyof A]: ReplaceReturnType<A[K], void>
+  [K in keyof A]: ReturnType<A[K]> extends (...args: any[]) => Promise<any>
+    ? ReplaceReturnType<A[K], Promise<void>>
+    : ReplaceReturnType<A[K], void>
 }
 type Updater<S> = Dispatch<SetStateAction<S>>
 type Hooks<S, A extends Actions<S>, E = S> = [Readonly<E>, ReturnActions<S, A>]
@@ -216,7 +218,7 @@ export function createStore<S, R extends Actions<S>>(
     )
     if (typeof Promise !== 'undefined' && result instanceof Promise) {
       middlewareCBs.push(...middlewares.map(fn => fn(key, args, store, true)))
-      result.then(performUpdate)
+      return result.then(performUpdate)
     } else {
       middlewareCBs.push(...middlewares.map(fn => fn(key, args, store, false)))
       performUpdate(result)
@@ -228,7 +230,7 @@ export function createStore<S, R extends Actions<S>>(
       get(target, key, desc) {
         return mapActions(key as string)
       }
-    })
+    }) as any
   } else {
     proxy = Object.keys(reducers).reduce((pre: any, key: string) => {
       pre[key] = mapActions(key)

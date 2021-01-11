@@ -230,9 +230,9 @@ describe('persistedStore', () => {
       component = renderer.create(<Counter />)
     })
     expect(component.toJSON()).toMatchSnapshot()
-    act(component.root.findByProps({ id: 'increase-btn' }).props.onClick)
+    await act(component.root.findByProps({ id: 'increase-btn' }).props.onClick)
     expect(fakeAction).toBeCalled()
-    expect(set).toBeCalledTimes(0)
+    expect(set).toBeCalledTimes(1)
 
     component.unmount()
     // jest.runAllTimers()
