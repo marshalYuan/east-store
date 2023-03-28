@@ -13,4 +13,7 @@ module.exports = {
   "transform": {
     "^.+\\.(ts|tsx)?$": "ts-jest"
   },
+  fakeTimers: {
+    "legacyFakeTimers": true,
+  },
 }
