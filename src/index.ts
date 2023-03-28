@@ -12,8 +12,10 @@ import {
   useRef,
   SetStateAction,
   Dispatch,
-  useCallback
+  useCallback,
+  useMemo
 } from 'react'
+import { Objectish } from 'immer/dist/internal'
 
 enableAllPlugins()
 
@@ -185,10 +187,10 @@ export function createStore<S, R extends Actions<S>>(
 
   function performUpdate(state: S) {
     if (isDraftable(state)) {
-      const result = applyPatches(transientState, changes)
+      const result = applyPatches(transientState as Objectish, changes)
       changes = []
       inverseChanges = []
-      transientState = result
+      transientState = result as S
     } else {
       transientState = state
     }
@@ -267,29 +269,36 @@ export function createStore<S, R extends Actions<S>>(
     // when all components been unmount, reset sharedState
   }
 
-  function useSelector<E>(
+  function useSelector<E = S>(
     selector?: Selector<S, E>,
     compareFn: (prev: E, curr: E) => boolean = shallowEqual
   ): [E, Updater<S>] {
-    let [state, setState] = useState<E | S>()
-    state = selector ? selector(transientState) : transientState
-    const stateRef = useRef(state)
-    stateRef.current = state
+    const [_, update] = useState([])
+    const derivedState = useMemo(
+      () => (selector ? selector(transientState) : transientState),
+      [selector]
+    )
+    const stateRef = useRef(derivedState)
+    if (selector && !compareFn(stateRef.current as E, derivedState as E)) {
+      stateRef.current = derivedState
+    }
     const updater = useCallback(
       (ts: S) => {
         if (selector) {
           const current = selector(ts)
           if (!compareFn(stateRef.current as E, current)) {
-            setState(current)
+            stateRef.current = current
+            update([])
           }
         } else {
-          setState(ts)
+          stateRef.current = ts
+          update([])
         }
       },
-      [selector]
+      [selector, compareFn]
     )
 
-    return [state as E, updater as Updater<S>]
+    return [stateRef.current as E, updater as Updater<S>]
   }
 
   function useSharedStore<E = S>(

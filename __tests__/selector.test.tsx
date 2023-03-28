@@ -1,5 +1,5 @@
 import { createStore } from '../'
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 
 import renderer, { act, ReactTestRenderer } from 'react-test-renderer'
 
@@ -78,10 +78,9 @@ describe('selector', () => {
       const [payload, setPayload] = useState(0)
       renderSentinal()
       const [n, _] = complex.useStore(s => s.baz.a + s.foo + payload)
-      // consistent effect
-      // const [n, _] = complex.useStore(useCallback(s => s.baz.a + s.foo + payload, [payload]));
+
       return (
-        <div id="number" onClick={() => setPayload(payload + 1)}>
+        <div id="number" onClick={() => setPayload(payload => payload + 1)}>
           {n}
         </div>
       )
@@ -97,7 +96,7 @@ describe('selector', () => {
     act(() => {
       component.root.findByProps({ id: 'number' }).props.onClick() // render 2
     })
-
+    expect(renderSentinal).toBeCalledTimes(2)
     expect(component.root.findByProps({ id: 'number' }).children[0]).toBe('102')
 
     act(() => {
@@ -107,5 +106,72 @@ describe('selector', () => {
     expect(component.root.findByProps({ id: 'number' }).children[0]).toBe('3')
 
     expect(renderSentinal).toBeCalledTimes(3)
+  })
+
+  test('compare select objectish default shallowEqual', () => {
+    const complex = createComplexStore()
+    const renderSentinal = jest.fn()
+    const Com4: React.FC = () => {
+      renderSentinal()
+      const [state, _] = complex.useStore(s => ({
+        foo: s.foo + 9,
+        bar: s.bar
+      }))
+      return <div id="number">{state.foo}</div>
+    }
+    let component = {} as ReactTestRenderer
+    act(() => {
+      component = renderer.create(<Com4 />) // render 1
+    })
+    expect(component.root.findByProps({ id: 'number' }).children[0]).toBe('10')
+
+    act(() => {
+      complex.getActions().setFoo(1) // not trigger render
+    })
+    // shallowEqual
+    expect(renderSentinal).toBeCalledTimes(1)
+
+    act(() => {
+      complex.getActions().setFoo(2) // trigger render
+    })
+
+    expect(renderSentinal).toBeCalledTimes(2)
+  })
+
+  test('select result as deps', () => {
+    const complex = createComplexStore()
+    const renderSentinal = jest.fn()
+    const effectSentinal = jest.fn()
+    const Com5: React.FC = () => {
+      renderSentinal()
+      const [state, _] = complex.useStore(s => ({
+        foo: s.foo + 9,
+        bar: s.bar
+      }))
+      const [other, setOther] = useState(0)
+      useEffect(() => {
+        effectSentinal()
+      }, [state])
+      return (
+        <div id="number" onClick={() => setOther(n => n + 1)}>
+          {state.foo}
+        </div>
+      )
+    }
+    let component = {} as ReactTestRenderer
+    act(() => {
+      component = renderer.create(<Com5 />) // render 1
+    })
+    expect(component.root.findByProps({ id: 'number' }).children[0]).toBe('10')
+    expect(renderSentinal).toBeCalledTimes(1)
+    expect(effectSentinal).toBeCalledTimes(1)
+
+    act(component.root.findByProps({ id: 'number' }).props.onClick)
+    act(component.root.findByProps({ id: 'number' }).props.onClick)
+    expect(renderSentinal).toBeCalledTimes(3)
+    expect(effectSentinal).toBeCalledTimes(1) // memo state
+
+    // act(component.root.findByProps({ id: 'number' }).props.onClick)
+    // expect(effectSentinal).toBeCalledTimes(1)
   })
 })

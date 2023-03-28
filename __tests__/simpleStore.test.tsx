@@ -234,6 +234,9 @@ describe('simpleStore', () => {
   })
 
   test('store.getState() & store.getActions()', () => {
+    // suppress console.warn output
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+
     let counterStore = createStore(0, {
       increase: () => count => count + 1
     })
